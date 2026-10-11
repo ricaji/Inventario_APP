@@ -82,20 +82,9 @@
             <label for="correo">Correo electrónico registrado</label>
             <input id="correo" type="email" autocomplete="email" required>
           </div>
-          <button class="go" type="submit">Enviar código</button>
+          <button class="go" type="submit">Enviar enlace</button>
         </form>
         <div id="codigo-aviso" class="aviso" hidden></div>
-        <form id="f-olv2" class="fila cuatro" hidden novalidate>
-          <div class="field">
-            <label for="codigo">Código de 6 dígitos</label>
-            <input id="codigo" inputmode="numeric" maxlength="6" autocomplete="one-time-code" required>
-          </div>
-          <div class="field">
-            <label for="nueva1">Nueva contraseña (mín. 6 caracteres)</label>
-            <input id="nueva1" type="password" autocomplete="new-password" required>
-          </div>
-          <button class="go" type="submit">Restablecer y desbloquear</button>
-        </form>
         <div class="links"><button class="link" type="button" data-ir="login">Volver a iniciar sesión</button></div>
       </section>
 
@@ -138,6 +127,9 @@
     </main>
   </div>
 
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
 <script src="app.js"></script>
 <script>
 (function () {
@@ -149,7 +141,7 @@
     document.querySelectorAll('[data-vista]').forEach(function (s) { s.hidden = s.dataset.vista !== vista; });
     wrap.dataset.modo = vista;
     msg('');
-    if (vista === 'olvido') { $('f-olv1').hidden = false; $('f-olv2').hidden = true; $('codigo-aviso').hidden = true; }
+    if (vista === 'olvido') { $('f-olv1').hidden = false; $('codigo-aviso').hidden = true; }
   }
   function ocupado(form, si) { form.querySelectorAll('button').forEach(function (b) { b.disabled = si; }); }
   function bienvenida(u) {
@@ -174,28 +166,18 @@
     $('clave').value = '';
     if ((r.user.rol === 'Administrador' || r.user.rol === 'Soporte')) location.href = 'usuarios.html'; else bienvenida(r.user);
   });
-  $('salir').addEventListener('click', function () { App.logout(); ir('login'); });
+  $('salir').addEventListener('click', function () { App.logout().then(function () { ir('login'); }); });
 
-  /* Restablecer: paso 1 (correo) y paso 2 (código + nueva clave) */
+  /* Restablecer: Firebase envía al correo un enlace para elegir la nueva contraseña */
   $('f-olv1').addEventListener('submit', async function (e) {
     e.preventDefault(); ocupado(this, true);
-    correoReset = $('correo').value.trim();
-    var r = await App.pedirCodigo(correoReset);
+    var r = await App.enviarRestablecer($('correo').value);
     ocupado(this, false);
     if (!r.ok) { msg(r.error, 'err'); return; }
     msg('');
     var a = $('codigo-aviso');
-    // Esta versión no tiene servidor de correo, por eso el código se muestra aquí.
-    a.textContent = 'Modo de prueba: sin servidor de correo, el código para ' + r.correo + ' es ' + r.codigo + ' (válido ' + r.minutos + ' minutos).';
-    a.hidden = false; $('f-olv1').hidden = true; $('f-olv2').hidden = false;
-  });
-  $('f-olv2').addEventListener('submit', async function (e) {
-    e.preventDefault(); ocupado(this, true);
-    var r = await App.restablecer(correoReset, $('codigo').value, $('nueva1').value);
-    ocupado(this, false);
-    if (!r.ok) { msg(r.error, 'err'); return; }
-    this.reset(); $('f-olv1').reset(); ir('login');
-    msg('Contraseña restablecida y cuenta desbloqueada. Ya puede ingresar.', 'ok');
+    a.textContent = 'Si ' + r.correo + ' está registrado, recibirá un correo con el enlace para elegir una nueva contraseña (revise también el spam). Después podrá iniciar sesión.';
+    a.hidden = false; $('f-olv1').hidden = true;
   });
 
   /* Cambiar contraseña */

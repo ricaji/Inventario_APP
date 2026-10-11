@@ -1,0 +1,47 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function perfil(uid) { return get(/databases/$(database)/documents/usuarios/$(uid)).data; }
+    function activo() {
+      return request.auth != null
+        && exists(/databases/$(database)/documents/usuarios/$(request.auth.uid))
+        && perfil(request.auth.uid).deshabilitado != true;
+    }
+    function admin() { return activo() && perfil(request.auth.uid).rol == 'Administrador'; }
+    function gestor() { return activo() && (perfil(request.auth.uid).rol == 'Administrador' || perfil(request.auth.uid).rol == 'Soporte'); }
+    function esAdminUid(uid) { return perfil(uid).rol == 'Administrador'; }
+
+    // Perfiles: rol, nombres y estado.
+    match /usuarios/{uid} {
+      allow get: if request.auth != null && (request.auth.uid == uid || gestor());
+      allow list: if gestor();
+      allow create: if admin() || (gestor() && request.resource.data.rol != 'Administrador');
+      allow update: if admin()
+        || (gestor() && resource.data.rol != 'Administrador' && request.resource.data.rol != 'Administrador')
+        || (request.auth != null && request.auth.uid == uid
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['porDefecto'])
+            && request.resource.data.porDefecto == false);
+      allow delete: if false;
+    }
+
+    // Inicio de sesión por nombre de usuario: correo asociado e intentos fallidos.
+    match /logins/{usuario} {
+      allow get: if true;
+      allow list: if gestor();
+      allow create: if gestor()
+        && (admin() || getAfter(/databases/$(database)/documents/usuarios/$(request.resource.data.uid)).data.rol != 'Administrador');
+      allow update: if
+        (gestor() && (admin() || !esAdminUid(resource.data.uid)))
+        || (request.auth != null && request.auth.uid == resource.data.uid
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['intentos', 'bloqueadoHasta'])
+            && request.resource.data.intentos == 0)
+        || (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['intentos', 'bloqueadoHasta'])
+            && request.resource.data.intentos == resource.data.get('intentos', 0) + 1
+            && (!('bloqueadoHasta' in request.resource.data)
+                || request.resource.data.bloqueadoHasta == resource.data.get('bloqueadoHasta', null)
+                || request.resource.data.bloqueadoHasta <= request.time + duration.value(16, 'm')));
+      allow delete: if false;
+    }
+  }
+}

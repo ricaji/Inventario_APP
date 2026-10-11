@@ -24,7 +24,7 @@
   .acciones{display:flex;flex-wrap:wrap;gap:10px;margin-top:14px}
   h2{margin:0 0 12px;font-size:17px}
   .tabla{overflow-x:auto}
-  table{width:100%;min-width:860px;border-collapse:collapse;font-size:14px}
+  table{width:100%;min-width:980px;border-collapse:collapse;font-size:14px}
   th{padding:8px;text-align:left;font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);border-bottom:2px solid var(--line)}
   td{padding:8px;border-bottom:1px solid #e6e6e6;vertical-align:middle}
   td select{height:36px;font-size:14px;min-width:150px}
@@ -97,6 +97,9 @@
     <a class="link" href="index.html">Ir a iniciar sesión</a>
   </section>
 
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
 <script src="app.js"></script>
 <script>
 (function () {
@@ -157,6 +160,15 @@
         cargar();
       });
       acc.appendChild(bHab);
+      var bRes = el('button', { cls: 'sec mini', type: 'button', text: 'Enviar restablecimiento', disabled: protegido,
+        title: 'Envía al correo del usuario un enlace para elegir una nueva contraseña' });
+      bRes.addEventListener('click', async function () {
+        bRes.disabled = true;
+        var x = await App.enviarRestablecerA(u.usuario);
+        if (!x.ok) msg(x.error, 'err'); else msg('Se envió el enlace de restablecimiento a ' + x.correo + '.', 'ok');
+        bRes.disabled = protegido;
+      });
+      acc.appendChild(bRes);
 
       var estado = u.deshabilitado ? 'deshabilitado' : (u.bloqueado ? 'bloqueado' : 'activo');
       var pill = el('span', { cls: 'pill ' + estado, text: { deshabilitado: 'Deshabilitado', bloqueado: 'Bloqueado', activo: 'Activo' }[estado] });
@@ -172,9 +184,9 @@
     editando = u.usuario;
     $('form-titulo').textContent = 'Editar usuario: ' + u.usuario;
     $('u-usuario').value = u.usuario; $('u-usuario').readOnly = true;
-    $('u-nombres').value = u.nombres; $('u-apellidos').value = u.apellidos; $('u-correo').value = u.correo; $('u-rol').value = u.rol;
+    $('u-nombres').value = u.nombres; $('u-apellidos').value = u.apellidos; $('u-correo').value = u.correo; $('u-correo').readOnly = true; $('u-rol').value = u.rol;
     $('u-rol').disabled = u.usuario === 'admin';
-    $('u-clave').value = ''; $('u-clave-lbl').textContent = 'Nueva contraseña (opcional)';
+    $('u-clave').value = ''; $('u-clave').closest('.field').hidden = true;
     $('guardar').textContent = 'Guardar cambios'; $('cancelar').hidden = false;
     msg(''); $('u-nombres').focus();
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -184,7 +196,7 @@
     $('f-usuario').reset();
     $('form-titulo').textContent = 'Crear usuario';
     $('u-usuario').readOnly = false; $('u-rol').disabled = false;
-    $('u-clave-lbl').textContent = 'Contraseña (mín. 6 caracteres)';
+    $('u-clave').closest('.field').hidden = false; $('u-correo').readOnly = false;
     $('guardar').textContent = 'Crear usuario'; $('cancelar').hidden = true;
   }
   $('cancelar').addEventListener('click', function () { salirEdicion(); msg(''); });
@@ -194,9 +206,8 @@
     $('guardar').disabled = true;
     var r;
     if (editando) {
-      var d = { nombres: $('u-nombres').value, apellidos: $('u-apellidos').value, correo: $('u-correo').value };
+      var d = { nombres: $('u-nombres').value, apellidos: $('u-apellidos').value };
       if (editando !== 'admin') d.rol = $('u-rol').value;
-      if ($('u-clave').value) d.clave = $('u-clave').value;
       r = await App.actualizar(editando, d);
       if (r.ok) { var n = editando; salirEdicion(); msg('Usuario ' + n + ' actualizado.', 'ok'); }
     } else {
@@ -209,7 +220,7 @@
     if (App.current()) $('aviso-clave').hidden = !App.current().porDefecto;
   });
 
-  $('salir').addEventListener('click', function () { App.logout(); location.href = 'index.html'; });
+  $('salir').addEventListener('click', function () { App.logout().then(function () { location.href = 'index.html'; }); });
 
   /* ---------- arranque ---------- */
   App.init().then(function () {
