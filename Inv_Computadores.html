@@ -26,9 +26,11 @@
   .acciones{display:flex;flex-wrap:wrap;gap:10px;margin-top:6px}
   .cabecera{display:flex;flex-wrap:wrap;gap:10px 16px;align-items:end;justify-content:space-between;margin-bottom:12px}
   .cabecera h2{margin:0}
-  .buscar{width:min(100%,340px)}
+  .filtros{display:flex;flex-wrap:wrap;gap:10px 14px;align-items:end}
+  .filtros .field{width:min(100%,180px)}
+  .filtros .buscar{width:min(100%,340px)}
   .tabla{overflow-x:auto}
-  table{width:100%;min-width:900px;border-collapse:collapse;font-size:14px}
+  table{width:100%;min-width:960px;border-collapse:collapse;font-size:14px}
   th{padding:8px;text-align:left;font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);border-bottom:2px solid var(--line);white-space:nowrap}
   td{padding:8px;border-bottom:1px solid #e6e6e6;vertical-align:top}
   .vacio{padding:18px 8px;color:var(--muted)}
@@ -65,14 +67,20 @@
     <section class="card">
       <div class="cabecera">
         <h2>Computadores registrados <span id="total" class="nota"></span></h2>
-        <div class="field buscar">
-          <label for="buscar">Buscar</label>
-          <input id="buscar" type="search" autocomplete="off" placeholder="CC, nombre, hostname, placa, serial…">
+        <div class="filtros">
+          <div class="field">
+            <label for="f-estado">Estado</label>
+            <select id="f-estado"><option value="">Todos</option></select>
+          </div>
+          <div class="field buscar">
+            <label for="buscar">Buscar</label>
+            <input id="buscar" type="search" autocomplete="off" placeholder="CC, nombre, hostname, placa, serial…">
+          </div>
         </div>
       </div>
       <div class="tabla">
         <table>
-          <thead><tr><th>CC</th><th>Responsable</th><th>Sede</th><th>Dependencia</th><th>Hostname</th><th>Marca / Modelo</th><th>Placa</th><th>Serial</th><th>Acciones</th></tr></thead>
+          <thead><tr><th>CC</th><th>Responsable</th><th>Sede</th><th>Dependencia</th><th>Hostname</th><th>Marca / Modelo</th><th>Placa</th><th>Serial</th><th>Estado</th><th>Acciones</th></tr></thead>
           <tbody id="tbody"></tbody>
         </table>
       </div>
@@ -95,7 +103,8 @@
   var COL = 'computadores';
   var yo = null, editando = null, equipos = [];
 
-  // Grupos de preguntas del formulario: [clave, etiqueta, obligatorio, tipo]
+  var ESTADOS = ['Activo', 'Baja', 'Garantía'];
+  // Grupos de preguntas del formulario: [clave, etiqueta, obligatorio, tipo, opciones]
   var GRUPOS = [
     ['Responsable', [
       ['cc', 'CC', true], ['nombres', 'Nombres', true], ['apellidos', 'Apellidos', true],
@@ -104,7 +113,7 @@
     ]],
     ['Clasificación', [['tipo1', 'Tipo 1'], ['tipo2', 'Tipo 2']]],
     ['Equipo', [
-      ['hostname', 'Hostname', true], ['marca', 'Marca'], ['modelo', 'Modelo'], ['placa', 'Placa'], ['serial', 'Serial']
+      ['estado', 'Estado', true, 'select', ESTADOS], ['hostname', 'Hostname', true], ['marca', 'Marca'], ['modelo', 'Modelo'], ['placa', 'Placa'], ['serial', 'Serial']
     ]],
     ['Hardware', [
       ['procesador', 'Procesador'], ['generacion', 'Generación'], ['ram', 'RAM'], ['ramTipo', 'Tipo (RAM)'],
@@ -139,9 +148,12 @@
         var lbl = el('label', { htmlFor: id });
         lbl.appendChild(document.createTextNode(c[1] + ' '));
         if (c[2]) lbl.appendChild(el('span', { cls: 'req', text: '*' }));
-        var inp = area ? el('textarea', { id: id, maxLength: 1000 })
-                       : el('input', { id: id, maxLength: 120, autocomplete: 'off' });
-        if (!area) inp.setAttribute('autocapitalize', 'none');
+        var inp;
+        if (area) inp = el('textarea', { id: id, maxLength: 1000 });
+        else if (c[3] === 'select') {
+          inp = el('select', { id: id });
+          c[4].forEach(function (o) { inp.appendChild(el('option', { text: o, value: o })); });
+        } else { inp = el('input', { id: id, maxLength: 120, autocomplete: 'off' }); inp.setAttribute('autocapitalize', 'none'); }
         grid.appendChild(el('div', { cls: 'field' + (area ? ' ancho' : '') }, [lbl, inp]));
       });
       cont.appendChild(el('fieldset', {}, [el('legend', { text: g[0] }), grid]));
@@ -153,7 +165,7 @@
     return d;
   }
   function ponerValores(d) {
-    CAMPOS.forEach(function (c) { $('c-' + c[0]).value = d[c[0]] || ''; });
+    CAMPOS.forEach(function (c) { $('c-' + c[0]).value = d[c[0]] || (c[3] === 'select' ? c[4][0] : ''); });
   }
   function salirEdicion() {
     editando = null;
@@ -219,13 +231,15 @@
   }
   function pintar() {
     var q = norm($('buscar').value), tb = $('tbody'); tb.textContent = '';
+    var fe = $('f-estado').value;
     var lista = equipos.filter(function (eq) {
+      if (fe && (eq.estado || '') !== fe) return false;
       if (!q) return true;
       return CAMPOS.some(function (c) { return norm(eq[c[0]]).indexOf(q) >= 0; });
     });
-    $('total').textContent = '(' + lista.length + (q ? ' de ' + equipos.length : '') + ')';
+    $('total').textContent = '(' + lista.length + (q || fe ? ' de ' + equipos.length : '') + ')';
     if (!lista.length) {
-      tb.appendChild(el('tr', {}, [el('td', { colSpan: 9, cls: 'vacio', text: equipos.length ? 'Ningún computador coincide con la búsqueda.' : 'Aún no hay computadores registrados.' })]));
+      tb.appendChild(el('tr', {}, [el('td', { colSpan: 10, cls: 'vacio', text: equipos.length ? 'Ningún computador coincide con la búsqueda.' : 'Aún no hay computadores registrados.' })]));
       return;
     }
     lista.forEach(function (eq) {
@@ -240,10 +254,13 @@
         el('td', { text: ((eq.marca || '') + ' ' + (eq.modelo || '')).trim() }),
         el('td', { text: eq.placa || '' }),
         el('td', { text: eq.serial || '' }),
+        el('td', { text: eq.estado || '' }),
         el('td', {}, [bEd])
       ]));
     });
   }
+  ESTADOS.forEach(function (o) { $('f-estado').appendChild(el('option', { text: o, value: o })); });
+  $('f-estado').addEventListener('change', pintar);
   $('buscar').addEventListener('input', pintar);
 
   $('salir').addEventListener('click', function () { App.logout().then(function () { location.href = 'index.html'; }); });
