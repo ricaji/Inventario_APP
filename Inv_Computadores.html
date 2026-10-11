@@ -35,6 +35,8 @@
   .denegado{max-width:520px;margin:48px auto}
   .denegado p{margin:0 0 14px}
   .req{color:var(--danger)}
+  #archivo{width:min(100%,360px);height:auto;padding:8px 10px}
+  .errores{margin:0 0 12px;padding-left:20px;font-size:14px;color:var(--err-ink)}
   .nota{margin:0 0 12px;font-size:13px;color:var(--muted)}
 </style>
 </head>
@@ -63,6 +65,24 @@
     </section>
 
     <section class="card">
+      <h2>Importar desde Excel</h2>
+      <p class="nota">Suba un archivo .xlsx, .xls o .csv con los encabezados en la primera fila (CC, NOMBRES, APELLIDOS, SEDE, DEPENDENCIA, TIPO CONTRATO, NÚMERO CONTRATO, TIPO 1, TIPO 2, HOSTNAME, MARCA, MODELO, PLACA, SERIAL, PROCESADOR, GENERACIÓN, RAM, TIPO, DD CANTIDAD 1, DD TIPO 1, DD CANTIDAD 2, DD TIPO 2, WINDOWS, CLAVE, OFFICE, ACTIVACIÓN, ANTIVIRUS, OBSERVACIONES). La columna ESTADO es opcional: si no está, todos se registran como <strong>Activo</strong>.</p>
+      <div class="acciones">
+        <input id="archivo" type="file" accept=".xlsx,.xls,.csv" aria-label="Archivo de Excel">
+        <button class="sec" type="button" id="plantilla">Descargar plantilla</button>
+      </div>
+      <div id="resumen" hidden>
+        <p id="resumen-txt" class="nota"></p>
+        <ul id="errores-lista" class="errores"></ul>
+        <div class="acciones">
+          <button class="go" type="button" id="importar-btn">Importar</button>
+          <button class="sec" type="button" id="importar-cancelar">Cancelar</button>
+        </div>
+      </div>
+      <p class="status" id="estado-imp" role="status" aria-live="polite"></p>
+    </section>
+
+    <section class="card">
       <div class="cabecera">
         <h2>Computadores registrados <span id="total" class="nota"></span></h2>
         <div class="field buscar">
@@ -88,6 +108,7 @@
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="app.js"></script>
 <script>
 (function () {
@@ -251,6 +272,129 @@
     });
   }
   $('buscar').addEventListener('input', pintar);
+
+  /* ---------- importar desde Excel ---------- */
+  var ENCAB = {};   // encabezado normalizado -> clave del campo
+  function normEnc(v) { return String(v == null ? '' : v).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase().replace(/[^A-Z0-9]+/g, ' ').trim(); }
+  CAMPOS.forEach(function (c) { ENCAB[normEnc(c[1])] = c[0]; });
+  ENCAB['TIPO'] = 'ramTipo';           // en el Excel, el TIPO que sigue a RAM
+  ENCAB['NUMERO CONTRATO'] = 'numeroContrato';
+  ENCAB['DD CANTIDAD 1'] = 'dd1Cantidad'; ENCAB['DD TIPO 1'] = 'dd1Tipo';
+  ENCAB['DD CANTIDAD 2'] = 'dd2Cantidad'; ENCAB['DD TIPO 2'] = 'dd2Tipo';
+  var pendientes = [];
+
+  function estadoDe(v) {
+    var n = normEnc(v);
+    if (!n) return 'Activo';
+    if (n === 'ACTIVO') return 'Activo';
+    if (n === 'BAJA') return 'Baja';
+    if (n === 'GARANTIA') return 'Garantía';
+    return null;
+  }
+  // filas: matriz (primera fila = encabezados). Devuelve { validos, errores, ignoradas }.
+  function procesarFilas(filas) {
+    var res = { validos: [], errores: [], ignoradas: [], fatal: null };
+    var iEnc = -1;
+    for (var i = 0; i < filas.length && iEnc < 0; i++) {
+      if (filas[i].some(function (c) { return limpio(c) !== ''; })) iEnc = i;
+    }
+    if (iEnc < 0) { res.fatal = 'El archivo está vacío.'; return res; }
+    var mapa = {};   // índice de columna -> campo
+    filas[iEnc].forEach(function (h, j) {
+      var campo = ENCAB[normEnc(h)];
+      if (campo && !Object.keys(mapa).some(function (k) { return mapa[k] === campo; })) mapa[j] = campo;
+      else if (limpio(h) !== '') res.ignoradas.push(limpio(h));
+    });
+    var tiene = {}; Object.keys(mapa).forEach(function (k) { tiene[mapa[k]] = true; });
+    var faltan = CAMPOS.filter(function (c) { return c[2] && c[0] !== 'estado' && !tiene[c[0]]; }).map(function (c) { return c[1]; });
+    if (faltan.length) { res.fatal = 'Faltan columnas obligatorias en el archivo: ' + faltan.join(', ') + '.'; return res; }
+
+    var vistos = { hostname: {}, serial: {}, placa: {} };
+    equipos.forEach(function (e) { ['hostname', 'serial', 'placa'].forEach(function (k) { if (norm(e[k])) vistos[k][norm(e[k])] = 'ya registrado'; }); });
+    for (var f = iEnc + 1; f < filas.length; f++) {
+      var fila = filas[f];
+      if (!fila.some(function (c) { return limpio(c) !== ''; })) continue;
+      var d = {};
+      CAMPOS.forEach(function (c) { d[c[0]] = ''; });
+      Object.keys(mapa).forEach(function (j) { d[mapa[j]] = limpio(fila[j]); });
+      var motivo = null;
+      var est = estadoDe(d.estado);
+      if (est === null) motivo = 'Estado no válido (' + d.estado + '); use Activo, Baja o Garantía';
+      else d.estado = est;
+      for (var k = 0; k < CAMPOS.length && !motivo; k++) {
+        if (CAMPOS[k][2] && !d[CAMPOS[k][0]]) motivo = 'falta ' + CAMPOS[k][1];
+      }
+      ['hostname', 'serial', 'placa'].forEach(function (campo) {
+        if (motivo || !d[campo]) return;
+        var n = norm(d[campo]);
+        if (vistos[campo][n]) motivo = campo + ' ' + d[campo] + ' repetido (' + (typeof vistos[campo][n] === 'number' ? 'fila ' + vistos[campo][n] : vistos[campo][n]) + ')';
+      });
+      if (motivo) { res.errores.push('Fila ' + (f + 1) + ': ' + motivo + '.'); continue; }
+      ['hostname', 'serial', 'placa'].forEach(function (campo) { if (d[campo]) vistos[campo][norm(d[campo])] = f + 1; });
+      res.validos.push(d);
+    }
+    return res;
+  }
+  function msgImp(t, tipo) { $('estado-imp').textContent = t || ''; $('estado-imp').className = 'status' + (tipo ? ' ' + tipo : ''); }
+  function limpiarImportacion() {
+    pendientes = []; $('resumen').hidden = true; $('archivo').value = ''; $('errores-lista').textContent = '';
+  }
+  $('archivo').addEventListener('change', async function () {
+    var file = this.files && this.files[0];
+    pendientes = []; $('resumen').hidden = true; msgImp('');
+    if (!file) return;
+    if (!window.XLSX) { msgImp('No se pudo cargar el lector de Excel. Revise su conexión a internet.', 'err'); return; }
+    try {
+      var wb = XLSX.read(await file.arrayBuffer(), { type: 'array' });
+      var ws = wb.Sheets[wb.SheetNames[0]];
+      var filas = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '', raw: false });
+      var res = procesarFilas(filas);
+      if (res.fatal) { msgImp(res.fatal, 'err'); return; }
+      pendientes = res.validos;
+      var txt = res.validos.length + ' computador(es) listos para importar';
+      if (res.errores.length) txt += ' y ' + res.errores.length + ' fila(s) con errores que se omitirán';
+      txt += '.';
+      if (res.ignoradas.length) txt += ' Columnas no reconocidas (se ignoran): ' + res.ignoradas.join(', ') + '.';
+      $('resumen-txt').textContent = txt;
+      var ul = $('errores-lista'); ul.textContent = '';
+      res.errores.slice(0, 15).forEach(function (m) { ul.appendChild(el('li', { text: m })); });
+      if (res.errores.length > 15) ul.appendChild(el('li', { text: '… y ' + (res.errores.length - 15) + ' más.' }));
+      $('importar-btn').disabled = !res.validos.length;
+      $('importar-btn').textContent = 'Importar ' + res.validos.length;
+      $('resumen').hidden = false;
+    } catch (err) { msgImp('No se pudo leer el archivo: ' + ((err && err.message) || 'formato no válido') + '.', 'err'); }
+  });
+  $('importar-cancelar').addEventListener('click', function () { limpiarImportacion(); msgImp(''); });
+  $('importar-btn').addEventListener('click', async function () {
+    if (!pendientes.length) return;
+    $('importar-btn').disabled = true; msgImp('Importando…');
+    try {
+      var db = firebase.firestore(), col = db.collection(COL), total = pendientes.length;
+      for (var i = 0; i < total; i += 400) {
+        var batch = db.batch();
+        pendientes.slice(i, i + 400).forEach(function (d) {
+          var x = Object.assign({}, d);
+          x.creadoPor = yo.usuario; x.actualizadoPor = yo.usuario; x.importado = true;
+          x.actualizado = firebase.firestore.FieldValue.serverTimestamp();
+          batch.set(col.doc(), x);
+        });
+        await batch.commit();
+      }
+      limpiarImportacion();
+      msgImp('Se importaron ' + total + ' computador(es).', 'ok');
+      await cargar();
+    } catch (err) {
+      $('importar-btn').disabled = false;
+      msgImp(err && err.code === 'permission-denied' ? 'No tiene permiso para realizar esta acción.' : ((err && err.message) || 'No se pudo importar.'), 'err');
+    }
+  });
+  $('plantilla').addEventListener('click', function () {
+    if (!window.XLSX) { msgImp('No se pudo cargar el lector de Excel.', 'err'); return; }
+    var enc = ['CC', 'NOMBRES', 'APELLIDOS', 'SEDE', 'DEPENDENCIA', 'TIPO CONTRATO', 'NÚMERO CONTRATO', 'TIPO 1', 'TIPO 2', 'HOSTNAME', 'MARCA', 'MODELO', 'PLACA', 'SERIAL', 'PROCESADOR', 'GENERACIÓN', 'RAM', 'TIPO', 'DD CANTIDAD 1', 'DD TIPO 1', 'DD CANTIDAD 2', 'DD TIPO 2', 'WINDOWS', 'CLAVE', 'OFFICE', 'ACTIVACIÓN', 'ANTIVIRUS', 'OBSERVACIONES', 'ESTADO'];
+    var wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([enc]), 'Computadores');
+    XLSX.writeFile(wb, 'plantilla_computadores.xlsx');
+  });
 
   $('salir').addEventListener('click', function () { App.logout().then(function () { location.href = 'index.html'; }); });
 
