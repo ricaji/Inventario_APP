@@ -37,6 +37,8 @@
   .aviso{margin:0 0 12px}
   .bienvenida p{margin:0 0 12px}
   .botones{display:flex;flex-wrap:wrap;gap:10px}
+  .destinos{margin-bottom:10px}
+  a.go{display:inline-flex;align-items:center;justify-content:center;text-decoration:none}
 
   @media (max-width:700px){
     .fila,.fila.dos,.fila.cuatro{grid-template-columns:1fr}
@@ -117,6 +119,10 @@
       <section data-vista="bienvenida" class="bienvenida" hidden>
         <h1 class="eyebrow">Sesión iniciada</h1>
         <p id="bienvenida-texto"></p>
+        <div class="botones destinos" id="destinos" hidden>
+          <a class="go" href="usuarios.html">Usuarios</a>
+          <a class="go" href="Inv_Computadores.html">Inventario de computadores</a>
+        </div>
         <div class="botones">
           <button class="sec" type="button" data-ir="cambio">Cambiar contraseña</button>
           <button class="go" type="button" id="salir">Cerrar sesión</button>
@@ -145,7 +151,11 @@
   }
   function ocupado(form, si) { form.querySelectorAll('button').forEach(function (b) { b.disabled = si; }); }
   function bienvenida(u) {
-    $('bienvenida-texto').textContent = 'Hola, ' + u.nombre + '. Su rol es ' + u.rol + '. Los módulos de inventario y mantenimiento se agregarán próximamente.';
+    var gestor = u.rol === 'Administrador' || u.rol === 'Soporte';
+    $('destinos').hidden = !gestor;
+    $('bienvenida-texto').textContent = gestor
+      ? 'Hola, ' + u.nombre + '. Su rol es ' + u.rol + '. ¿A dónde desea ir?'
+      : 'Hola, ' + u.nombre + '. Su rol es ' + u.rol + '. Los módulos de inventario y mantenimiento se agregarán próximamente.';
     ir('bienvenida');
   }
 
@@ -164,7 +174,7 @@
     ocupado(this, false);
     if (!r.ok) { msg(r.error, 'err'); return; }
     $('clave').value = '';
-    if ((r.user.rol === 'Administrador' || r.user.rol === 'Soporte')) location.href = 'usuarios.html'; else bienvenida(r.user);
+    bienvenida(r.user);
   });
   $('salir').addEventListener('click', function () { App.logout().then(function () { ir('login'); }); });
 
@@ -199,7 +209,7 @@
       var u0 = App.current(); ir('cambio'); if (u0) $('c-usuario').value = u0.usuario; return;
     }
     var u = App.current();
-    if (u) { if ((u.rol === 'Administrador' || u.rol === 'Soporte')) location.replace('usuarios.html'); else bienvenida(u); }
+    if (u) bienvenida(u);
   });
 })();
 </script>
