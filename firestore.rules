@@ -6,7 +6,7 @@ service cloud.firestore {
     function activo() {
       return request.auth != null
         && exists(/databases/$(database)/documents/usuarios/$(request.auth.uid))
-        && perfil(request.auth.uid).deshabilitado != true;
+        && perfil(request.auth.uid).get('deshabilitado', false) != true;
     }
     function admin() { return activo() && perfil(request.auth.uid).rol == 'Administrador'; }
     function gestor() { return activo() && (perfil(request.auth.uid).rol == 'Administrador' || perfil(request.auth.uid).rol == 'Soporte'); }
@@ -22,6 +22,12 @@ service cloud.firestore {
         || (request.auth != null && request.auth.uid == uid
             && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['porDefecto'])
             && request.resource.data.porDefecto == false);
+      allow delete: if false;
+    }
+
+    // Inventario de computadores: solo Administrador y Soporte.
+    match /computadores/{id} {
+      allow read, create, update: if gestor();
       allow delete: if false;
     }
 
