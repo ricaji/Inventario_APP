@@ -24,7 +24,7 @@
   .acciones{display:flex;flex-wrap:wrap;gap:10px;margin-top:14px}
   h2{margin:0 0 12px;font-size:17px}
   .tabla{overflow-x:auto}
-  table{width:100%;min-width:760px;border-collapse:collapse;font-size:14px}
+  table{width:100%;min-width:860px;border-collapse:collapse;font-size:14px}
   th{padding:8px;text-align:left;font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);border-bottom:2px solid var(--line)}
   td{padding:8px;border-bottom:1px solid #e6e6e6;vertical-align:middle}
   td select{height:36px;font-size:14px;min-width:150px}
@@ -61,8 +61,10 @@
         <div class="grid">
           <div class="field"><label for="u-usuario">Usuario</label>
             <input id="u-usuario" autocomplete="off" autocapitalize="none" spellcheck="false" maxlength="30" required></div>
-          <div class="field"><label for="u-nombre">Nombre completo</label>
-            <input id="u-nombre" autocomplete="off" maxlength="100" required></div>
+          <div class="field"><label for="u-nombres">Nombres</label>
+            <input id="u-nombres" autocomplete="off" maxlength="60" required></div>
+          <div class="field"><label for="u-apellidos">Apellidos</label>
+            <input id="u-apellidos" autocomplete="off" maxlength="60" required></div>
           <div class="field"><label for="u-correo">Correo electrónico</label>
             <input id="u-correo" type="email" autocomplete="off" required></div>
           <div class="field"><label for="u-rol">Rol</label>
@@ -82,7 +84,7 @@
       <h2>Usuarios registrados</h2>
       <div class="tabla">
         <table>
-          <thead><tr><th>Usuario</th><th>Nombre</th><th>Correo</th><th>Rol</th><th>Estado</th><th>Acciones</th></tr></thead>
+          <thead><tr><th>Usuario</th><th>Nombres</th><th>Apellidos</th><th>Correo</th><th>Rol</th><th>Estado</th><th>Acciones</th></tr></thead>
           <tbody id="tbody"></tbody>
         </table>
       </div>
@@ -114,7 +116,7 @@
     var r = await App.listar();
     var tb = $('tbody'); tb.textContent = '';
     if (!r.ok) { msg(r.error, 'err'); return; }
-    if (!r.users.length) { tb.appendChild(el('tr', {}, [el('td', { colSpan: 6, cls: 'vacio', text: 'Sin usuarios.' })])); return; }
+    if (!r.users.length) { tb.appendChild(el('tr', {}, [el('td', { colSpan: 7, cls: 'vacio', text: 'Sin usuarios.' })])); return; }
 
     r.users.forEach(function (u) {
       var esAdmin = u.usuario === 'admin';
@@ -156,7 +158,7 @@
       var estado = u.deshabilitado ? 'deshabilitado' : (u.bloqueado ? 'bloqueado' : 'activo');
       var pill = el('span', { cls: 'pill ' + estado, text: { deshabilitado: 'Deshabilitado', bloqueado: 'Bloqueado', activo: 'Activo' }[estado] });
       tb.appendChild(el('tr', { cls: u.deshabilitado ? 'des' : (u.bloqueado ? 'bloq' : '') }, [
-        el('td', { text: u.usuario }), el('td', { text: u.nombre }), el('td', { text: u.correo }),
+        el('td', { text: u.usuario }), el('td', { text: u.nombres }), el('td', { text: u.apellidos }), el('td', { text: u.correo }),
         el('td', {}, [sel]), el('td', {}, [pill]), el('td', {}, [acc])
       ]));
     });
@@ -167,11 +169,11 @@
     editando = u.usuario;
     $('form-titulo').textContent = 'Editar usuario: ' + u.usuario;
     $('u-usuario').value = u.usuario; $('u-usuario').readOnly = true;
-    $('u-nombre').value = u.nombre; $('u-correo').value = u.correo; $('u-rol').value = u.rol;
+    $('u-nombres').value = u.nombres; $('u-apellidos').value = u.apellidos; $('u-correo').value = u.correo; $('u-rol').value = u.rol;
     $('u-rol').disabled = u.usuario === 'admin';
     $('u-clave').value = ''; $('u-clave-lbl').textContent = 'Nueva contraseña (opcional)';
     $('guardar').textContent = 'Guardar cambios'; $('cancelar').hidden = false;
-    msg(''); $('u-nombre').focus();
+    msg(''); $('u-nombres').focus();
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }
   function salirEdicion() {
@@ -189,13 +191,13 @@
     $('guardar').disabled = true;
     var r;
     if (editando) {
-      var d = { nombre: $('u-nombre').value, correo: $('u-correo').value };
+      var d = { nombres: $('u-nombres').value, apellidos: $('u-apellidos').value, correo: $('u-correo').value };
       if (editando !== 'admin') d.rol = $('u-rol').value;
       if ($('u-clave').value) d.clave = $('u-clave').value;
       r = await App.actualizar(editando, d);
       if (r.ok) { var n = editando; salirEdicion(); msg('Usuario ' + n + ' actualizado.', 'ok'); }
     } else {
-      r = await App.crear({ usuario: $('u-usuario').value, nombre: $('u-nombre').value, correo: $('u-correo').value, rol: $('u-rol').value, clave: $('u-clave').value });
+      r = await App.crear({ usuario: $('u-usuario').value, nombres: $('u-nombres').value, apellidos: $('u-apellidos').value, correo: $('u-correo').value, rol: $('u-rol').value, clave: $('u-clave').value });
       if (r.ok) { var nuevo = $('u-usuario').value.trim(); salirEdicion(); msg('Usuario ' + nuevo + ' creado.', 'ok'); }
     }
     $('guardar').disabled = false;

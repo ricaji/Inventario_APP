@@ -14,7 +14,7 @@
 
   // Usuario principal. Solo se guarda el hash de la clave inicial, no la clave.
   var SEED = {
-    usuario: 'admin', nombre: 'Administrador principal', correo: 'admin@empresa.com',
+    usuario: 'admin', nombres: 'Administrador', apellidos: 'Principal', nombre: 'Administrador Principal', correo: 'admin@empresa.com',
     rol: 'Administrador',
     salt: '6bf863f0ba0832d47e03490ae0938973',
     hash: 'c62191bcb802838c847b438051c3cf6b079504806f833549b11602ea4c21469e'
@@ -55,7 +55,7 @@
   /* ---------- utilidades ---------- */
   function low(s) { return String(s || '').trim().toLowerCase(); }
   function pub(u) {
-    return { usuario: u.usuario, nombre: u.nombre, correo: u.correo, rol: u.rol, bloqueado: !!u.bloqueado, deshabilitado: !!u.deshabilitado, porDefecto: !!u.porDefecto };
+    return { usuario: u.usuario, nombre: u.nombre, nombres: u.nombres !== undefined ? u.nombres : u.nombre, apellidos: u.apellidos || '', correo: u.correo, rol: u.rol, bloqueado: !!u.bloqueado, deshabilitado: !!u.deshabilitado, porDefecto: !!u.porDefecto };
   }
   function findUser(us, nombre) { return us.filter(function (u) { return low(u.usuario) === low(nombre); })[0]; }
   function findMail(us, mail) { return us.filter(function (u) { return low(u.correo) === low(mail); })[0]; }
@@ -161,16 +161,17 @@
 
   var crear = safe(async function (d) {
     exigirAdmin();
-    var us = readUsers(), usr = String(d.usuario || '').trim(), mail = String(d.correo || '').trim(), nom = String(d.nombre || '').trim();
+    var us = readUsers(), usr = String(d.usuario || '').trim(), mail = String(d.correo || '').trim(), nms = String(d.nombres || '').trim(), aps = String(d.apellidos || '').trim();
     if (!RE_USER.test(usr)) return { error: 'Usuario: de 3 a 30 caracteres (letras, números, . _ -).' };
-    if (!nom) return { error: 'Escriba el nombre completo.' };
+    if (!nms) return { error: 'Escriba los nombres.' };
+    if (!aps) return { error: 'Escriba los apellidos.' };
     if (!RE_MAIL.test(mail)) return { error: 'Correo electrónico inválido.' };
     if (ROLES.indexOf(d.rol) < 0) return { error: 'Seleccione un rol válido.' };
     if (!validClave(d.clave)) return { error: MSG_CLAVE };
     if (findUser(us, usr)) return { error: 'Ese usuario ya existe.' };
     if (findMail(us, mail)) return { error: 'Ese correo ya está registrado.' };
     var salt = randHex(16);
-    us.push({ usuario: usr, nombre: nom, correo: mail, rol: d.rol, salt: salt, hash: await derive(d.clave, salt), intentos: 0, bloqueado: false, deshabilitado: false, porDefecto: false });
+    us.push({ usuario: usr, nombres: nms, apellidos: aps, nombre: nms + ' ' + aps, correo: mail, rol: d.rol, salt: salt, hash: await derive(d.clave, salt), intentos: 0, bloqueado: false, deshabilitado: false, porDefecto: false });
     writeUsers(us);
     return { ok: true };
   });
@@ -179,9 +180,12 @@
     exigirAdmin();
     var us = readUsers(), u = findUser(us, usuario);
     if (!u) return { error: 'Usuario no encontrado.' };
-    if (d.nombre !== undefined) {
-      if (!String(d.nombre).trim()) return { error: 'Escriba el nombre completo.' };
-      u.nombre = String(d.nombre).trim();
+    if (d.nombres !== undefined || d.apellidos !== undefined) {
+      var nms = String(d.nombres !== undefined ? d.nombres : (u.nombres !== undefined ? u.nombres : u.nombre)).trim();
+      var aps = String(d.apellidos !== undefined ? d.apellidos : (u.apellidos || '')).trim();
+      if (!nms) return { error: 'Escriba los nombres.' };
+      if (!aps) return { error: 'Escriba los apellidos.' };
+      u.nombres = nms; u.apellidos = aps; u.nombre = nms + ' ' + aps;
     }
     if (d.correo !== undefined) {
       var mail = String(d.correo).trim(), otro = findMail(us, mail);
