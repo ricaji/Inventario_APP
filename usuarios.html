@@ -140,15 +140,18 @@
         });
         acc.appendChild(bDes);
       }
-      if (!esAdmin && u.usuario !== yo.usuario) {
-        var bHab = el('button', { cls: 'sec mini', type: 'button', text: u.deshabilitado ? 'Habilitar' : 'Deshabilitar' });
-        bHab.addEventListener('click', async function () {
-          var x = await App.habilitar(u.usuario, !!u.deshabilitado);
-          if (!x.ok) msg(x.error, 'err'); else msg('Usuario ' + u.usuario + (u.deshabilitado ? ' habilitado.' : ' deshabilitado.'), 'ok');
-          cargar();
-        });
-        acc.appendChild(bHab);
-      }
+      var noPuede = esAdmin || u.usuario === yo.usuario;
+      var bHab = el('button', {
+        cls: 'sec mini', type: 'button', disabled: noPuede,
+        text: u.deshabilitado ? 'Habilitar' : 'Deshabilitar',
+        title: esAdmin ? 'El usuario admin no se puede deshabilitar' : (noPuede ? 'No puede deshabilitar su propio usuario' : '')
+      });
+      bHab.addEventListener('click', async function () {
+        var x = await App.habilitar(u.usuario, !!u.deshabilitado);
+        if (!x.ok) msg(x.error, 'err'); else msg('Usuario ' + u.usuario + (u.deshabilitado ? ' habilitado.' : ' deshabilitado.'), 'ok');
+        cargar();
+      });
+      acc.appendChild(bHab);
       if (!esAdmin) {
         var bEl = el('button', { cls: 'danger mini', type: 'button', text: 'Eliminar' });
         bEl.addEventListener('click', function () { confirmarEliminar(bEl, u); });
