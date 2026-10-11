@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#ededed">
+<title>Usuarios - Inventario APP</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;600;700&display=swap">
+<link rel="stylesheet" href="estilos.css">
+<style>
+  /* Barra superior con la sesión y bloque de trabajo: formulario arriba, tabla debajo. */
+  .barra{
+    display:flex;flex-wrap:wrap;align-items:center;gap:6px 18px;
+    max-width:1100px;margin:0 auto;padding-block:14px;
+  }
+  .barra .marca{margin:0;font-size:18px;font-weight:700;letter-spacing:.01em;flex:1 1 auto}
+  .barra .marca span{color:var(--muted);font-weight:600}
+  .barra .quien{font-size:14px;color:var(--muted)}
+  main{max-width:1100px;margin:0 auto;padding-bottom:32px;display:grid;grid-template-columns:minmax(0,1fr);gap:16px}
+  main > *{min-width:0}
+  .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:12px}
+  .acciones{display:flex;flex-wrap:wrap;gap:10px;margin-top:14px}
+  h2{margin:0 0 12px;font-size:17px}
+  .tabla{overflow-x:auto}
+  table{width:100%;min-width:760px;border-collapse:collapse;font-size:14px}
+  th{padding:8px;text-align:left;font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);border-bottom:2px solid var(--line)}
+  td{padding:8px;border-bottom:1px solid #e6e6e6;vertical-align:middle}
+  td select{height:36px;font-size:14px;min-width:150px}
+  tr.bloq td{background:#fdf4f2}
+  .pill{display:inline-block;padding:2px 10px;border-radius:999px;font-size:12px;font-weight:700}
+  .pill.activo{background:var(--ok-bg);color:var(--ok-ink)}
+  .pill.bloqueado{background:var(--err-bg);color:var(--err-ink)}
+  .pill.deshabilitado{background:#e3e3e3;color:#444}
+  tr.des td{color:var(--muted)}
+  .fila-acc{display:flex;flex-wrap:wrap;gap:6px}
+  .vacio{padding:18px 8px;color:var(--muted)}
+  .denegado{max-width:520px;margin:48px auto}
+  .denegado p{margin:0 0 14px}
+</style>
+</head>
+<body>
+
+  <header class="barra" id="barra" hidden>
+    <h1 class="marca">Inventario APP <span>· Usuarios</span></h1>
+    <span class="quien" id="quien"></span>
+    <a class="link" href="index.html#cambiar">Cambiar contraseña</a>
+    <button class="sec mini" type="button" id="salir">Salir</button>
+  </header>
+
+  <main id="contenido" hidden>
+    <div class="aviso" id="aviso-clave" hidden>
+      Está usando la contraseña inicial del administrador, que es conocida. Cámbiela ahora desde
+      <a class="link" href="index.html#cambiar">Cambiar contraseña</a>.
+    </div>
+
+    <section class="card">
+      <h2 id="form-titulo">Crear usuario</h2>
+      <form id="f-usuario" novalidate>
+        <div class="grid">
+          <div class="field"><label for="u-usuario">Usuario</label>
+            <input id="u-usuario" autocomplete="off" autocapitalize="none" spellcheck="false" maxlength="30" required></div>
+          <div class="field"><label for="u-nombre">Nombre completo</label>
+            <input id="u-nombre" autocomplete="off" maxlength="100" required></div>
+          <div class="field"><label for="u-correo">Correo electrónico</label>
+            <input id="u-correo" type="email" autocomplete="off" required></div>
+          <div class="field"><label for="u-rol">Rol</label>
+            <select id="u-rol"></select></div>
+          <div class="field"><label for="u-clave" id="u-clave-lbl">Contraseña (mín. 6 caracteres)</label>
+            <input id="u-clave" type="password" autocomplete="new-password"></div>
+        </div>
+        <div class="acciones">
+          <button class="go" type="submit" id="guardar">Crear usuario</button>
+          <button class="sec" type="button" id="cancelar" hidden>Cancelar edición</button>
+        </div>
+      </form>
+      <p class="status" id="estado" role="status" aria-live="polite"></p>
+    </section>
+
+    <section class="card">
+      <h2>Usuarios registrados</h2>
+      <div class="tabla">
+        <table>
+          <thead><tr><th>Usuario</th><th>Nombre</th><th>Correo</th><th>Rol</th><th>Estado</th><th>Acciones</th></tr></thead>
+          <tbody id="tbody"></tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+
+  <section class="card denegado" id="denegado" hidden>
+    <h1 class="eyebrow">Acceso restringido</h1>
+    <p id="denegado-texto">Esta página es solo para Administradores.</p>
+    <a class="link" href="index.html">Ir a iniciar sesión</a>
+  </section>
+
+<script src="app.js"></script>
+<script>
+(function () {
+  var $ = function (id) { return document.getElementById(id); };
+  var yo = null, editando = null;
+
+  function msg(t, tipo) { $('estado').textContent = t || ''; $('estado').className = 'status' + (tipo ? ' ' + tipo : ''); }
+  function el(tag, props, hijos) {
+    var e = document.createElement(tag);
+    Object.keys(props || {}).forEach(function (k) { if (k === 'text') e.textContent = props[k]; else if (k === 'cls') e.className = props[k]; else e[k] = props[k]; });
+    (hijos || []).forEach(function (h) { e.appendChild(h); });
+    return e;
+  }
+
+  /* ---------- tabla ---------- */
+  async function cargar() {
+    var r = await App.listar();
+    var tb = $('tbody'); tb.textContent = '';
+    if (!r.ok) { msg(r.error, 'err'); return; }
+    if (!r.users.length) { tb.appendChild(el('tr', {}, [el('td', { colSpan: 6, cls: 'vacio', text: 'Sin usuarios.' })])); return; }
+
+    r.users.forEach(function (u) {
+      var esAdmin = u.usuario === 'admin';
+      var sel = el('select', { disabled: esAdmin, title: esAdmin ? 'El usuario admin siempre es Administrador' : 'Cambiar rol' });
+      sel.setAttribute('aria-label', 'Rol de ' + u.usuario);
+      App.ROLES.forEach(function (rol) { var o = el('option', { text: rol, value: rol }); if (rol === u.rol) o.selected = true; sel.appendChild(o); });
+      sel.addEventListener('change', async function () {
+        var x = await App.actualizar(u.usuario, { rol: sel.value });
+        if (!x.ok) msg(x.error, 'err'); else msg('Rol de ' + u.usuario + ' actualizado a ' + sel.value + '.', 'ok');
+        cargar();
+      });
+
+      var acc = el('div', { cls: 'fila-acc' });
+      var bEd = el('button', { cls: 'sec mini', type: 'button', text: 'Editar' });
+      bEd.addEventListener('click', function () { editar(u); });
+      acc.appendChild(bEd);
+      if (u.bloqueado && !u.deshabilitado) {
+        var bDes = el('button', { cls: 'sec mini', type: 'button', text: 'Desbloquear' });
+        bDes.addEventListener('click', async function () {
+          var x = await App.desbloquear(u.usuario);
+          if (!x.ok) msg(x.error, 'err'); else msg('Usuario ' + u.usuario + ' desbloqueado.', 'ok');
+          cargar();
+        });
+        acc.appendChild(bDes);
+      }
+      if (!esAdmin && u.usuario !== yo.usuario) {
+        var bHab = el('button', { cls: 'sec mini', type: 'button', text: u.deshabilitado ? 'Habilitar' : 'Deshabilitar' });
+        bHab.addEventListener('click', async function () {
+          var x = await App.habilitar(u.usuario, !!u.deshabilitado);
+          if (!x.ok) msg(x.error, 'err'); else msg('Usuario ' + u.usuario + (u.deshabilitado ? ' habilitado.' : ' deshabilitado.'), 'ok');
+          cargar();
+        });
+        acc.appendChild(bHab);
+      }
+      if (!esAdmin) {
+        var bEl = el('button', { cls: 'danger mini', type: 'button', text: 'Eliminar' });
+        bEl.addEventListener('click', function () { confirmarEliminar(bEl, u); });
+        acc.appendChild(bEl);
+      }
+
+      var estado = u.deshabilitado ? 'deshabilitado' : (u.bloqueado ? 'bloqueado' : 'activo');
+      var pill = el('span', { cls: 'pill ' + estado, text: { deshabilitado: 'Deshabilitado', bloqueado: 'Bloqueado', activo: 'Activo' }[estado] });
+      tb.appendChild(el('tr', { cls: u.deshabilitado ? 'des' : (u.bloqueado ? 'bloq' : '') }, [
+        el('td', { text: u.usuario }), el('td', { text: u.nombre }), el('td', { text: u.correo }),
+        el('td', {}, [sel]), el('td', {}, [pill]), el('td', {}, [acc])
+      ]));
+    });
+  }
+
+  // El visor de artefactos no muestra confirm(): la confirmación va en el propio botón.
+  function confirmarEliminar(btn, u) {
+    if (btn.dataset.seguro !== '1') {
+      btn.dataset.seguro = '1'; btn.textContent = '¿Seguro?';
+      setTimeout(function () { btn.dataset.seguro = ''; btn.textContent = 'Eliminar'; }, 4000);
+      return;
+    }
+    App.eliminar(u.usuario).then(function (x) {
+      if (!x.ok) msg(x.error, 'err'); else msg('Usuario ' + u.usuario + ' eliminado.', 'ok');
+      if (editando === u.usuario) salirEdicion();
+      cargar();
+    });
+  }
+
+  /* ---------- formulario crear / editar ---------- */
+  function editar(u) {
+    editando = u.usuario;
+    $('form-titulo').textContent = 'Editar usuario: ' + u.usuario;
+    $('u-usuario').value = u.usuario; $('u-usuario').readOnly = true;
+    $('u-nombre').value = u.nombre; $('u-correo').value = u.correo; $('u-rol').value = u.rol;
+    $('u-rol').disabled = u.usuario === 'admin';
+    $('u-clave').value = ''; $('u-clave-lbl').textContent = 'Nueva contraseña (opcional)';
+    $('guardar').textContent = 'Guardar cambios'; $('cancelar').hidden = false;
+    msg(''); $('u-nombre').focus();
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+  function salirEdicion() {
+    editando = null;
+    $('f-usuario').reset();
+    $('form-titulo').textContent = 'Crear usuario';
+    $('u-usuario').readOnly = false; $('u-rol').disabled = false;
+    $('u-clave-lbl').textContent = 'Contraseña (mín. 6 caracteres)';
+    $('guardar').textContent = 'Crear usuario'; $('cancelar').hidden = true;
+  }
+  $('cancelar').addEventListener('click', function () { salirEdicion(); msg(''); });
+
+  $('f-usuario').addEventListener('submit', async function (e) {
+    e.preventDefault();
+    $('guardar').disabled = true;
+    var r;
+    if (editando) {
+      var d = { nombre: $('u-nombre').value, correo: $('u-correo').value };
+      if (editando !== 'admin') d.rol = $('u-rol').value;
+      if ($('u-clave').value) d.clave = $('u-clave').value;
+      r = await App.actualizar(editando, d);
+      if (r.ok) { var n = editando; salirEdicion(); msg('Usuario ' + n + ' actualizado.', 'ok'); }
+    } else {
+      r = await App.crear({ usuario: $('u-usuario').value, nombre: $('u-nombre').value, correo: $('u-correo').value, rol: $('u-rol').value, clave: $('u-clave').value });
+      if (r.ok) { var nuevo = $('u-usuario').value.trim(); salirEdicion(); msg('Usuario ' + nuevo + ' creado.', 'ok'); }
+    }
+    $('guardar').disabled = false;
+    if (!r.ok) msg(r.error, 'err');
+    cargar();
+    if (App.current()) $('aviso-clave').hidden = !App.current().porDefecto;
+  });
+
+  $('salir').addEventListener('click', function () { App.logout(); location.href = 'index.html'; });
+
+  /* ---------- arranque ---------- */
+  App.init().then(function () {
+    yo = App.current();
+    if (!yo) {
+      $('denegado-texto').textContent = 'Inicie sesión para entrar a esta página.';
+      $('denegado').hidden = false; return;
+    }
+    if (yo.rol !== 'Administrador') {
+      $('denegado').hidden = false; return;
+    }
+    App.ROLES.forEach(function (rol) { $('u-rol').appendChild(el('option', { text: rol, value: rol })); });
+    $('quien').textContent = yo.nombre + ' (' + yo.rol + ')';
+    $('aviso-clave').hidden = !yo.porDefecto;
+    $('barra').hidden = false; $('contenido').hidden = false;
+    cargar();
+  });
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,62 @@
+/* Estilos compartidos de Inventario APP */
+:root{
+  --ground:#ededed;      /* mismo gris del borde de logoapp.png, sin costuras */
+  --ink:#2f2f2f;
+  --muted:#5b5b5b;
+  --brand:#19699f;
+  --brand-dark:#124f78;
+  --signal:#f2b705;      /* amarillo del logo, solo para el foco */
+  --danger:#b3382c;
+  --card:#fff;
+  --line:#d4d4d4;
+  --ok-bg:#e3f3e8;  --ok-ink:#1d5b33;
+  --err-bg:#fbe7e4; --err-ink:#8c2a20;
+  --warn-bg:#fff4d1; --warn-ink:#6b5200;
+  --font:"Archivo",system-ui,"Segoe UI",Arial,sans-serif;
+  color-scheme:light;
+}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%;text-size-adjust:100%}
+[hidden]{display:none!important}
+body{
+  margin:0;
+  padding-inline:max(16px,env(safe-area-inset-left)) max(16px,env(safe-area-inset-right));
+  background:var(--ground);color:var(--ink);
+  font:400 15px/1.45 var(--font);
+}
+.card{
+  background:var(--card);border:1px solid var(--line);border-radius:8px;
+  padding:16px 20px 14px;box-shadow:0 6px 24px rgba(0,0,0,.08);
+}
+.eyebrow{margin:0 0 10px;font-size:13px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--muted)}
+label{display:block;margin-bottom:4px;font-size:13px;font-weight:600}
+.field{min-width:0}
+input,select{
+  width:100%;height:44px;padding:0 12px;
+  border:1px solid #b9b9b9;border-radius:6px;background:#fff;color:var(--ink);
+  font:inherit;font-size:16px;      /* 16px evita el zoom automático en iPhone */
+}
+button{font:inherit;cursor:pointer}
+button:disabled{opacity:.55;cursor:default}
+.go,.sec,.danger{height:44px;padding:0 22px;border:0;border-radius:6px;font-weight:700;letter-spacing:.02em}
+.go{background:var(--brand);color:#fff}
+.go:hover:not(:disabled){background:var(--brand-dark)}
+.sec{background:#fff;color:var(--brand);border:1px solid var(--brand)}
+.sec:hover:not(:disabled){background:#eef5fa}
+.danger{background:#fff;color:var(--danger);border:1px solid var(--danger)}
+.danger:hover:not(:disabled){background:#fdf0ee}
+.mini{height:34px;padding:0 12px;font-size:13px}
+.links{display:flex;flex-wrap:wrap;gap:0 18px;margin-top:6px;font-size:14px}
+.link{padding:8px 0;border:0;background:none;color:var(--brand);text-decoration:underline;text-underline-offset:3px;font-size:inherit}
+a.link{display:inline-block}
+.link:hover{color:var(--brand-dark)}
+:is(input,select,button,a):focus-visible{outline:3px solid var(--signal);outline-offset:2px}
+.status{margin:6px 0 0;font-size:14px;color:var(--muted)}
+.status:empty{display:none}
+.status.ok,.aviso.ok{background:var(--ok-bg);color:var(--ok-ink)}
+.status.err,.aviso.err{background:var(--err-bg);color:var(--err-ink)}
+.status.ok,.status.err{padding:8px 12px;border-radius:6px}
+.aviso{padding:10px 12px;border-radius:6px;background:var(--warn-bg);color:var(--warn-ink);font-size:14px}
+@media (prefers-reduced-motion:no-preference){
+  .go,.sec,.danger{transition:background-color .15s}
+}

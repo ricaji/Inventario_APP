@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#ededed">
+<title>Inventario APP</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;600;700&display=swap">
+<link rel="stylesheet" href="estilos.css">
+<style>
+  /* Composición adaptable: el banner con los logos y el formulario forman un bloque
+     centrado. El banner mantiene su proporción y se reduce para que todo quepa en
+     pantalla. --reserva es el alto que se deja libre para el formulario de cada vista. */
+  .wrap{
+    --reserva:250px;
+    min-height:100vh;min-height:100dvh;
+    display:flex;flex-direction:column;justify-content:center;align-items:center;gap:12px;
+    padding-block:16px;
+  }
+  .wrap[data-modo="olvido"],.wrap[data-modo="cambio"]{--reserva:430px}
+  .wrap[data-modo="bienvenida"]{--reserva:300px}
+  .banner{
+    width:min(100%,1100px,max(360px,calc((100vh - var(--reserva)) * 1.634)));
+    aspect-ratio:1000 / 612;
+    background:url("logoapp.png") center / 100% 100% no-repeat;
+  }
+  @supports (height:100dvh){
+    .banner{width:min(100%,1100px,max(360px,calc((100dvh - var(--reserva)) * 1.634)))}
+  }
+  .card{width:min(100%,780px)}
+  .fila{display:grid;grid-template-columns:1fr 1fr auto;gap:12px;align-items:end}
+  .fila.dos{grid-template-columns:1fr auto}
+  .fila.cuatro{grid-template-columns:1fr 1fr}
+  .fila.cuatro .go{grid-column:1/-1}
+  .aviso{margin:0 0 12px}
+  .bienvenida p{margin:0 0 12px}
+  .botones{display:flex;flex-wrap:wrap;gap:10px}
+
+  @media (max-width:700px){
+    .fila,.fila.dos,.fila.cuatro{grid-template-columns:1fr}
+    .go,.sec{width:100%}
+    .card{padding:14px 16px 8px}
+    .wrap{--reserva:360px}
+    .wrap[data-modo="olvido"],.wrap[data-modo="cambio"]{--reserva:620px}
+    .wrap[data-modo="bienvenida"]{--reserva:360px}
+  }
+</style>
+</head>
+<body>
+  <div class="wrap" id="wrap" data-modo="login">
+    <div class="banner" role="img" aria-label="Agencia APP y Alcaldía de Medellín, Distrito de Ciencia, Tecnología e Innovación"></div>
+
+    <main class="card">
+
+      <!-- Iniciar sesión -->
+      <section data-vista="login">
+        <h1 class="eyebrow">Inventario APP</h1>
+        <form id="f-login" class="fila" novalidate>
+          <div class="field">
+            <label for="usuario">Usuario</label>
+            <input id="usuario" autocomplete="username" autocapitalize="none" spellcheck="false" required>
+          </div>
+          <div class="field">
+            <label for="clave">Contraseña</label>
+            <input id="clave" type="password" autocomplete="current-password" required>
+          </div>
+          <button class="go" type="submit">Ingresar</button>
+        </form>
+        <div class="links">
+          <button class="link" type="button" data-ir="olvido">¿Olvidó su contraseña?</button>
+          <button class="link" type="button" data-ir="cambio">Cambiar contraseña</button>
+        </div>
+      </section>
+
+      <!-- Restablecer contraseña con el correo registrado -->
+      <section data-vista="olvido" hidden>
+        <h1 class="eyebrow">Restablecer contraseña</h1>
+        <form id="f-olv1" class="fila dos" novalidate>
+          <div class="field">
+            <label for="correo">Correo electrónico registrado</label>
+            <input id="correo" type="email" autocomplete="email" required>
+          </div>
+          <button class="go" type="submit">Enviar código</button>
+        </form>
+        <div id="codigo-aviso" class="aviso" hidden></div>
+        <form id="f-olv2" class="fila cuatro" hidden novalidate>
+          <div class="field">
+            <label for="codigo">Código de 6 dígitos</label>
+            <input id="codigo" inputmode="numeric" maxlength="6" autocomplete="one-time-code" required>
+          </div>
+          <div class="field">
+            <label for="nueva1">Nueva contraseña (mín. 6 caracteres)</label>
+            <input id="nueva1" type="password" autocomplete="new-password" required>
+          </div>
+          <button class="go" type="submit">Restablecer y desbloquear</button>
+        </form>
+        <div class="links"><button class="link" type="button" data-ir="login">Volver a iniciar sesión</button></div>
+      </section>
+
+      <!-- Cambiar contraseña -->
+      <section data-vista="cambio" hidden>
+        <h1 class="eyebrow">Cambiar contraseña</h1>
+        <form id="f-cambio" class="fila cuatro" novalidate>
+          <div class="field">
+            <label for="c-usuario">Usuario</label>
+            <input id="c-usuario" autocomplete="username" autocapitalize="none" spellcheck="false" required>
+          </div>
+          <div class="field">
+            <label for="c-actual">Contraseña actual</label>
+            <input id="c-actual" type="password" autocomplete="current-password" required>
+          </div>
+          <div class="field">
+            <label for="c-nueva">Nueva contraseña (mín. 6 caracteres)</label>
+            <input id="c-nueva" type="password" autocomplete="new-password" required>
+          </div>
+          <div class="field">
+            <label for="c-repite">Repita la nueva contraseña</label>
+            <input id="c-repite" type="password" autocomplete="new-password" required>
+          </div>
+          <button class="go" type="submit">Cambiar contraseña</button>
+        </form>
+        <div class="links"><button class="link" type="button" data-ir="login">Volver a iniciar sesión</button></div>
+      </section>
+
+      <!-- Usuarios que no son Administrador -->
+      <section data-vista="bienvenida" class="bienvenida" hidden>
+        <h1 class="eyebrow">Sesión iniciada</h1>
+        <p id="bienvenida-texto"></p>
+        <div class="botones">
+          <button class="sec" type="button" data-ir="cambio">Cambiar contraseña</button>
+          <button class="go" type="button" id="salir">Cerrar sesión</button>
+        </div>
+      </section>
+
+      <p class="status" id="estado" role="status" aria-live="polite"></p>
+    </main>
+  </div>
+
+<script src="app.js"></script>
+<script>
+(function () {
+  var $ = function (id) { return document.getElementById(id); };
+  var wrap = $('wrap'), estado = $('estado'), correoReset = '';
+
+  function msg(t, tipo) { estado.textContent = t || ''; estado.className = 'status' + (tipo ? ' ' + tipo : ''); }
+  function ir(vista) {
+    document.querySelectorAll('[data-vista]').forEach(function (s) { s.hidden = s.dataset.vista !== vista; });
+    wrap.dataset.modo = vista;
+    msg('');
+    if (vista === 'olvido') { $('f-olv1').hidden = false; $('f-olv2').hidden = true; $('codigo-aviso').hidden = true; }
+  }
+  function ocupado(form, si) { form.querySelectorAll('button').forEach(function (b) { b.disabled = si; }); }
+  function bienvenida(u) {
+    $('bienvenida-texto').textContent = 'Hola, ' + u.nombre + '. Su rol es ' + u.rol + '. Los módulos de inventario y mantenimiento se agregarán próximamente.';
+    ir('bienvenida');
+  }
+
+  document.querySelectorAll('[data-ir]').forEach(function (b) {
+    b.addEventListener('click', function () {
+      var u = App.current();
+      ir(b.dataset.ir);
+      if (b.dataset.ir === 'cambio' && u) $('c-usuario').value = u.usuario;
+    });
+  });
+
+  /* Iniciar sesión */
+  $('f-login').addEventListener('submit', async function (e) {
+    e.preventDefault(); ocupado(this, true);
+    var r = await App.login($('usuario').value, $('clave').value);
+    ocupado(this, false);
+    if (!r.ok) { msg(r.error, 'err'); return; }
+    $('clave').value = '';
+    if (r.user.rol === 'Administrador') location.href = 'usuarios.html'; else bienvenida(r.user);
+  });
+  $('salir').addEventListener('click', function () { App.logout(); ir('login'); });
+
+  /* Restablecer: paso 1 (correo) y paso 2 (código + nueva clave) */
+  $('f-olv1').addEventListener('submit', async function (e) {
+    e.preventDefault(); ocupado(this, true);
+    correoReset = $('correo').value.trim();
+    var r = await App.pedirCodigo(correoReset);
+    ocupado(this, false);
+    if (!r.ok) { msg(r.error, 'err'); return; }
+    msg('');
+    var a = $('codigo-aviso');
+    // Esta versión no tiene servidor de correo, por eso el código se muestra aquí.
+    a.textContent = 'Modo de prueba: sin servidor de correo, el código para ' + r.correo + ' es ' + r.codigo + ' (válido ' + r.minutos + ' minutos).';
+    a.hidden = false; $('f-olv1').hidden = true; $('f-olv2').hidden = false;
+  });
+  $('f-olv2').addEventListener('submit', async function (e) {
+    e.preventDefault(); ocupado(this, true);
+    var r = await App.restablecer(correoReset, $('codigo').value, $('nueva1').value);
+    ocupado(this, false);
+    if (!r.ok) { msg(r.error, 'err'); return; }
+    this.reset(); $('f-olv1').reset(); ir('login');
+    msg('Contraseña restablecida y cuenta desbloqueada. Ya puede ingresar.', 'ok');
+  });
+
+  /* Cambiar contraseña */
+  $('f-cambio').addEventListener('submit', async function (e) {
+    e.preventDefault();
+    if ($('c-nueva').value !== $('c-repite').value) { msg('Las contraseñas nuevas no coinciden.', 'err'); return; }
+    ocupado(this, true);
+    var r = await App.cambiarClave($('c-usuario').value, $('c-actual').value, $('c-nueva').value);
+    ocupado(this, false);
+    if (!r.ok) { msg(r.error, 'err'); return; }
+    this.reset(); ir('login');
+    msg('Contraseña cambiada correctamente.', 'ok');
+  });
+
+  /* Arranque: crea el usuario admin si no existe y retoma una sesión abierta */
+  App.init().then(function (r) {
+    if (r && r.error) { msg(r.error, 'err'); return; }
+    if (location.hash === '#cambiar') {
+      var u0 = App.current(); ir('cambio'); if (u0) $('c-usuario').value = u0.usuario; return;
+    }
+    var u = App.current();
+    if (u) { if (u.rol === 'Administrador') location.replace('usuarios.html'); else bienvenida(u); }
+  });
+})();
+</script>
+</body>
+</html>
