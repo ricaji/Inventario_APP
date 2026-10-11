@@ -222,19 +222,9 @@
     return { ok: true };
   });
 
-  var eliminar = safe(async function (usuario) {
-    var yo = exigirAdmin();
-    var us = readUsers(), u = findUser(us, usuario);
-    if (!u) return { error: 'Usuario no encontrado.' };
-    if (u.usuario === 'admin') return { error: 'El usuario admin no se puede eliminar.' };
-    if (u.usuario === yo.usuario) return { error: 'No puede eliminar su propio usuario.' };
-    writeUsers(us.filter(function (x) { return x !== u; }));
-    return { ok: true };
-  });
-
   global.App = {
     ROLES: ROLES, init: init, current: current, logout: logout, login: login,
     pedirCodigo: pedirCodigo, restablecer: restablecer, cambiarClave: cambiarClave,
-    listar: listar, crear: crear, actualizar: actualizar, desbloquear: desbloquear, habilitar: habilitar, eliminar: eliminar
+    listar: listar, crear: crear, actualizar: actualizar, desbloquear: desbloquear, habilitar: habilitar
   };
 })(window);

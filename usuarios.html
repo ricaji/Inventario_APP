@@ -152,11 +152,6 @@
         cargar();
       });
       acc.appendChild(bHab);
-      if (!esAdmin) {
-        var bEl = el('button', { cls: 'danger mini', type: 'button', text: 'Eliminar' });
-        bEl.addEventListener('click', function () { confirmarEliminar(bEl, u); });
-        acc.appendChild(bEl);
-      }
 
       var estado = u.deshabilitado ? 'deshabilitado' : (u.bloqueado ? 'bloqueado' : 'activo');
       var pill = el('span', { cls: 'pill ' + estado, text: { deshabilitado: 'Deshabilitado', bloqueado: 'Bloqueado', activo: 'Activo' }[estado] });
@@ -164,20 +159,6 @@
         el('td', { text: u.usuario }), el('td', { text: u.nombre }), el('td', { text: u.correo }),
         el('td', {}, [sel]), el('td', {}, [pill]), el('td', {}, [acc])
       ]));
-    });
-  }
-
-  // El visor de artefactos no muestra confirm(): la confirmación va en el propio botón.
-  function confirmarEliminar(btn, u) {
-    if (btn.dataset.seguro !== '1') {
-      btn.dataset.seguro = '1'; btn.textContent = '¿Seguro?';
-      setTimeout(function () { btn.dataset.seguro = ''; btn.textContent = 'Eliminar'; }, 4000);
-      return;
-    }
-    App.eliminar(u.usuario).then(function (x) {
-      if (!x.ok) msg(x.error, 'err'); else msg('Usuario ' + u.usuario + ' eliminado.', 'ok');
-      if (editando === u.usuario) salirEdicion();
-      cargar();
     });
   }
 
