@@ -147,26 +147,30 @@
     return { ok: true };
   });
 
-  /* ---------- administración de usuarios (solo Administrador) ---------- */
-  function exigirAdmin() {
+  /* ---------- gestión de usuarios (Administrador y Soporte) ---------- */
+  function exigirGestor() {
     var c = current();
-    if (!c || c.rol !== 'Administrador') throw new Error('Acceso solo para Administradores.');
+    if (!c || (c.rol !== 'Administrador' && c.rol !== 'Soporte')) throw new Error('Acceso solo para Administradores y Soporte.');
     return c;
   }
+  // Soporte no puede crear Administradores ni modificar a quienes ya lo son.
+  var MSG_SOPORTE = 'El rol Soporte no puede crear ni modificar usuarios Administradores.';
+  function soporteNoToca(yo, u) { return yo.rol === 'Soporte' && u.rol === 'Administrador'; }
 
   var listar = safe(async function () {
-    exigirAdmin();
+    exigirGestor();
     return { ok: true, users: readUsers().map(pub) };
   });
 
   var crear = safe(async function (d) {
-    exigirAdmin();
+    var yo = exigirGestor();
     var us = readUsers(), usr = String(d.usuario || '').trim(), mail = String(d.correo || '').trim(), nms = String(d.nombres || '').trim(), aps = String(d.apellidos || '').trim();
     if (!RE_USER.test(usr)) return { error: 'Usuario: de 3 a 30 caracteres (letras, números, . _ -).' };
     if (!nms) return { error: 'Escriba los nombres.' };
     if (!aps) return { error: 'Escriba los apellidos.' };
     if (!RE_MAIL.test(mail)) return { error: 'Correo electrónico inválido.' };
     if (ROLES.indexOf(d.rol) < 0) return { error: 'Seleccione un rol válido.' };
+    if (yo.rol === 'Soporte' && d.rol === 'Administrador') return { error: MSG_SOPORTE };
     if (!validClave(d.clave)) return { error: MSG_CLAVE };
     if (findUser(us, usr)) return { error: 'Ese usuario ya existe.' };
     if (findMail(us, mail)) return { error: 'Ese correo ya está registrado.' };
@@ -177,9 +181,10 @@
   });
 
   var actualizar = safe(async function (usuario, d) {
-    exigirAdmin();
+    var yo = exigirGestor();
     var us = readUsers(), u = findUser(us, usuario);
     if (!u) return { error: 'Usuario no encontrado.' };
+    if (soporteNoToca(yo, u)) return { error: MSG_SOPORTE };
     if (d.nombres !== undefined || d.apellidos !== undefined) {
       var nms = String(d.nombres !== undefined ? d.nombres : (u.nombres !== undefined ? u.nombres : u.nombre)).trim();
       var aps = String(d.apellidos !== undefined ? d.apellidos : (u.apellidos || '')).trim();
@@ -195,6 +200,7 @@
     }
     if (d.rol !== undefined) {
       if (ROLES.indexOf(d.rol) < 0) return { error: 'Seleccione un rol válido.' };
+      if (yo.rol === 'Soporte' && d.rol === 'Administrador') return { error: MSG_SOPORTE };
       if (u.usuario === 'admin' && d.rol !== 'Administrador') return { error: 'El usuario admin siempre es Administrador.' };
       u.rol = d.rol;
     }
@@ -207,17 +213,19 @@
   });
 
   var desbloquear = safe(async function (usuario) {
-    exigirAdmin();
+    var yo = exigirGestor();
     var us = readUsers(), u = findUser(us, usuario);
     if (!u) return { error: 'Usuario no encontrado.' };
+    if (soporteNoToca(yo, u)) return { error: MSG_SOPORTE };
     u.bloqueado = false; u.intentos = 0; writeUsers(us);
     return { ok: true };
   });
 
   var habilitar = safe(async function (usuario, habilitado) {
-    var yo = exigirAdmin();
+    var yo = exigirGestor();
     var us = readUsers(), u = findUser(us, usuario);
     if (!u) return { error: 'Usuario no encontrado.' };
+    if (soporteNoToca(yo, u)) return { error: MSG_SOPORTE };
     if (!habilitado) {
       if (u.usuario === 'admin') return { error: 'El usuario admin no se puede deshabilitar.' };
       if (u.usuario === yo.usuario) return { error: 'No puede deshabilitar su propio usuario.' };

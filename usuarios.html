@@ -93,7 +93,7 @@
 
   <section class="card denegado" id="denegado" hidden>
     <h1 class="eyebrow">Acceso restringido</h1>
-    <p id="denegado-texto">Esta página es solo para Administradores.</p>
+    <p id="denegado-texto">Esta página es solo para los roles Administrador y Soporte.</p>
     <a class="link" href="index.html">Ir a iniciar sesión</a>
   </section>
 
@@ -101,7 +101,9 @@
 <script>
 (function () {
   var $ = function (id) { return document.getElementById(id); };
-  var yo = null, editando = null;
+  var yo = null, editando = null, esSoporte = false;
+  // Soporte no puede asignar ni crear el rol Administrador.
+  function rolesPermitidos(actual) { return App.ROLES.filter(function (r) { return !(esSoporte && r === 'Administrador') || r === actual; }); }
 
   function msg(t, tipo) { $('estado').textContent = t || ''; $('estado').className = 'status' + (tipo ? ' ' + tipo : ''); }
   function el(tag, props, hijos) {
@@ -120,9 +122,10 @@
 
     r.users.forEach(function (u) {
       var esAdmin = u.usuario === 'admin';
-      var sel = el('select', { disabled: esAdmin, title: esAdmin ? 'El usuario admin siempre es Administrador' : 'Cambiar rol' });
+      var protegido = esSoporte && u.rol === 'Administrador';   // Soporte no modifica Administradores
+      var sel = el('select', { disabled: esAdmin || protegido, title: esAdmin ? 'El usuario admin siempre es Administrador' : (protegido ? 'Soporte no puede modificar Administradores' : 'Cambiar rol') });
       sel.setAttribute('aria-label', 'Rol de ' + u.usuario);
-      App.ROLES.forEach(function (rol) { var o = el('option', { text: rol, value: rol }); if (rol === u.rol) o.selected = true; sel.appendChild(o); });
+      rolesPermitidos(u.rol).forEach(function (rol) { var o = el('option', { text: rol, value: rol }); if (rol === u.rol) o.selected = true; sel.appendChild(o); });
       sel.addEventListener('change', async function () {
         var x = await App.actualizar(u.usuario, { rol: sel.value });
         if (!x.ok) msg(x.error, 'err'); else msg('Rol de ' + u.usuario + ' actualizado a ' + sel.value + '.', 'ok');
@@ -130,11 +133,11 @@
       });
 
       var acc = el('div', { cls: 'fila-acc' });
-      var bEd = el('button', { cls: 'sec mini', type: 'button', text: 'Editar' });
+      var bEd = el('button', { cls: 'sec mini', type: 'button', text: 'Editar', disabled: protegido });
       bEd.addEventListener('click', function () { editar(u); });
       acc.appendChild(bEd);
       if (u.bloqueado && !u.deshabilitado) {
-        var bDes = el('button', { cls: 'sec mini', type: 'button', text: 'Desbloquear' });
+        var bDes = el('button', { cls: 'sec mini', type: 'button', text: 'Desbloquear', disabled: protegido });
         bDes.addEventListener('click', async function () {
           var x = await App.desbloquear(u.usuario);
           if (!x.ok) msg(x.error, 'err'); else msg('Usuario ' + u.usuario + ' desbloqueado.', 'ok');
@@ -142,11 +145,11 @@
         });
         acc.appendChild(bDes);
       }
-      var noPuede = esAdmin || u.usuario === yo.usuario;
+      var noPuede = esAdmin || protegido || u.usuario === yo.usuario;
       var bHab = el('button', {
         cls: 'sec mini', type: 'button', disabled: noPuede,
         text: u.deshabilitado ? 'Habilitar' : 'Deshabilitar',
-        title: esAdmin ? 'El usuario admin no se puede deshabilitar' : (noPuede ? 'No puede deshabilitar su propio usuario' : '')
+        title: esAdmin ? 'El usuario admin no se puede deshabilitar' : (protegido ? 'Soporte no puede modificar Administradores' : noPuede ? 'No puede deshabilitar su propio usuario' : '')
       });
       bHab.addEventListener('click', async function () {
         var x = await App.habilitar(u.usuario, !!u.deshabilitado);
@@ -215,10 +218,12 @@
       $('denegado-texto').textContent = 'Inicie sesión para entrar a esta página.';
       $('denegado').hidden = false; return;
     }
-    if (yo.rol !== 'Administrador') {
+    if (yo.rol !== 'Administrador' && yo.rol !== 'Soporte') {
+      $('denegado-texto').textContent = 'Esta página es solo para los roles Administrador y Soporte.';
       $('denegado').hidden = false; return;
     }
-    App.ROLES.forEach(function (rol) { $('u-rol').appendChild(el('option', { text: rol, value: rol })); });
+    esSoporte = yo.rol === 'Soporte';
+    rolesPermitidos().forEach(function (rol) { $('u-rol').appendChild(el('option', { text: rol, value: rol })); });
     $('quien').textContent = yo.nombre + ' (' + yo.rol + ')';
     $('aviso-clave').hidden = !yo.porDefecto;
     $('barra').hidden = false; $('contenido').hidden = false;
