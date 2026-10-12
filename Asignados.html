@@ -28,6 +28,7 @@
   table{width:100%;min-width:1000px;border-collapse:collapse;font-size:14px}
   th{padding:8px;text-align:left;font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);border-bottom:2px solid var(--line);white-space:nowrap;position:sticky;top:0;background:var(--card);z-index:1}
   td{padding:8px;border-bottom:1px solid #e6e6e6;vertical-align:top}
+  #f-asignar{margin-bottom:6px}
   .vacio{padding:18px 8px;color:var(--muted)}
   .denegado{max-width:520px;margin:48px auto}
   .denegado p{margin:0 0 14px}
@@ -68,9 +69,18 @@
 
     <section class="card" id="res-equipos" hidden>
       <h2>Equipos asignados <span id="total" class="nota"></span></h2>
+      <form class="busca" id="f-asignar" novalidate>
+        <div class="field">
+          <label for="placa-nueva">Asignar equipo (placa)</label>
+          <input id="placa-nueva" type="search" autocomplete="off" list="lista-libres" placeholder="Placa de un equipo libre…">
+          <datalist id="lista-libres"></datalist>
+        </div>
+        <button class="go" type="submit" id="asignar-btn">Asignar</button>
+      </form>
+      <p class="status" id="estado-asig" role="status" aria-live="polite"></p>
       <div class="tabla">
         <table>
-          <thead><tr><th>Placa</th><th>Tipo 1</th><th>Tipo 2</th><th>Hostname</th><th>Marca</th><th>Modelo</th><th>Serial</th><th>Procesador</th><th>RAM</th><th>Windows</th><th>Office</th><th>Antivirus</th><th>Estado</th></tr></thead>
+          <thead><tr><th>Placa</th><th>Tipo 1</th><th>Tipo 2</th><th>Hostname</th><th>Marca</th><th>Modelo</th><th>Serial</th><th>Procesador</th><th>RAM</th><th>Windows</th><th>Office</th><th>Antivirus</th><th>Estado</th><th>Acciones</th></tr></thead>
           <tbody id="tbody"></tbody>
         </table>
       </div>
@@ -90,7 +100,7 @@
 <script>
 (function () {
   var $ = function (id) { return document.getElementById(id); };
-  var yo = null, personas = [], asignaciones = [], equipos = [];
+  var yo = null, personas = [], asignaciones = [], equipos = [], actual = null;
 
   var DATOS = [['cc', 'CC'], ['nombres', 'Nombres'], ['apellidos', 'Apellidos'], ['sede', 'Sede'], ['dependencia', 'Dependencia'],
     ['tipoContrato', 'Tipo contrato'], ['numeroContrato', 'Número contrato']];
@@ -105,6 +115,14 @@
     (hijos || []).forEach(function (h) { e.appendChild(h); });
     return e;
   }
+  function msgAsig(t, tipo) { $('estado-asig').textContent = t || ''; $('estado-asig').className = 'status' + (tipo ? ' ' + tipo : ''); }
+  function ocupado(e) {
+    return asignaciones.some(function (a) {
+      if (!limpio(a.cc)) return false;
+      return (limpio(e.placa) && norm(a.placa) === norm(e.placa)) || (a.id === e.id && !a.liberado);
+    });
+  }
+  function libres() { return equipos.filter(function (e) { return limpio(e.placa) && !ocupado(e); }); }
   function leer(nombre) {
     return firebase.firestore().collection(nombre).get().then(function (snap) {
       var lista = [];
@@ -161,24 +179,86 @@
     var usados = {}, filas = [];
     propios.forEach(function (a) {
       var placa = norm(a.placa);
-      var eq = (placa && equipos.filter(function (e) { return norm(e.placa) === placa; })[0]) || equipos.filter(function (e) { return e.id === a.id; })[0] || null;
+      var eq = (placa && equipos.filter(function (e) { return norm(e.placa) === placa; })[0]) || (!a.liberado && equipos.filter(function (e) { return e.id === a.id; })[0]) || null;
       var clave = placa || ('id:' + a.id);
-      if (usados[clave]) return;
-      usados[clave] = 1;
+      if (usados[clave]) { usados[clave].ids.push(a.id); return; }
       if (!placa && !eq) return;
-      filas.push({ eq: eq, placa: limpio(a.placa), estado: limpio((eq && eq.estado) || a.estado) });
+      usados[clave] = { eq: eq, placa: limpio(a.placa), estado: limpio((eq && eq.estado) || a.estado), ids: [a.id] };
+      filas.push(usados[clave]);
     });
     $('total').textContent = '(' + filas.length + ')';
     if (!filas.length) {
-      tb.appendChild(el('tr', {}, [el('td', { colSpan: 13, cls: 'vacio', text: 'Esta persona no tiene equipos asignados.' })]));
+      tb.appendChild(el('tr', {}, [el('td', { colSpan: 14, cls: 'vacio', text: 'Esta persona no tiene equipos asignados.' })]));
     }
     filas.forEach(function (f) {
       var celdas = COLS.map(function (k) { return el('td', { text: limpio(f.eq ? f.eq[k] : '') || (k === 'placa' ? f.placa : '') }); });
       celdas.push(el('td', { text: f.estado }));
+      celdas.push(el('td', {}, [botonQuitar(f)]));
       tb.appendChild(el('tr', {}, celdas));
     });
+    actual = { q: q, datos: origen };
+    var lib = $('lista-libres'); lib.textContent = '';
+    libres().sort(function (a, b) { return norm(a.placa) < norm(b.placa) ? -1 : 1; }).forEach(function (e) {
+      var d = [e.hostname, e.marca, e.modelo].map(limpio).filter(Boolean).join(' ');
+      lib.appendChild(el('option', { value: limpio(e.placa), label: d }));
+    });
+    $('placa-nueva').value = '';
     $('res-equipos').hidden = false;
   }
+
+  function botonQuitar(f) {
+    var b = el('button', { cls: 'sec mini', type: 'button', text: 'Quitar' }), paso = 0, t;
+    b.addEventListener('click', async function () {
+      if (!paso) {
+        paso = 1; b.textContent = '¿Confirmar?';
+        t = setTimeout(function () { paso = 0; b.textContent = 'Quitar'; }, 4000); return;
+      }
+      clearTimeout(t); b.disabled = true; msgAsig('Quitando…');
+      try {
+        var col = firebase.firestore().collection('computadores');
+        for (var i = 0; i < f.ids.length; i++) {
+          await col.doc(f.ids[i]).update({
+            placaAnterior: f.placa, placa: '', liberado: firebase.firestore.FieldValue.serverTimestamp(), liberadoPor: yo.usuario,
+            actualizadoPor: yo.usuario, actualizado: firebase.firestore.FieldValue.serverTimestamp()
+          });
+        }
+        await cargar(); mostrar(); msgAsig('Equipo liberado: ' + (f.placa || 'sin placa') + '.', 'ok');
+      } catch (err) {
+        b.disabled = false; paso = 0; b.textContent = 'Quitar';
+        msgAsig(err && err.code === 'permission-denied' ? 'No tiene permiso para realizar esta acción.' : ((err && err.message) || 'No se pudo quitar.'), 'err');
+      }
+    });
+    return b;
+  }
+
+  $('f-asignar').addEventListener('submit', async function (e) {
+    e.preventDefault();
+    if (!actual) return;
+    var v = norm($('placa-nueva').value);
+    if (!v) { msgAsig('Elija o escriba la placa del equipo.', 'err'); return; }
+    $('asignar-btn').disabled = true; msgAsig('Asignando…');
+    try {
+      if (!(await cargar())) throw new Error('No se pudo actualizar la información.');
+      var eq = equipos.filter(function (x) { return norm(x.placa) === v; })[0];
+      if (!eq) throw new Error('No existe la placa ' + limpio($('placa-nueva').value) + ' en bd_Computadores.');
+      if (ocupado(eq)) {
+        var dueño = asignaciones.filter(function (a) { return limpio(a.cc) && norm(a.placa) === v; })[0];
+        throw new Error('Esa placa ya está asignada' + (dueño ? ' a la CC ' + limpio(dueño.cc) : '') + '. Quítela primero.');
+      }
+      var d = {};
+      DATOS.forEach(function (c) { d[c[0]] = limpio(actual.datos[c[0]]); });
+      d.placa = limpio(eq.placa); d.estado = limpio(eq.estado) || 'Activo';
+      d.actualizadoPor = yo.usuario; d.actualizado = firebase.firestore.FieldValue.serverTimestamp();
+      var col = firebase.firestore().collection('computadores');
+      var reuso = asignaciones.filter(function (a) { return norm(a.cc) === actual.q && !limpio(a.placa) && a.liberado; })[0];
+      if (reuso) { d.liberado = firebase.firestore.FieldValue.delete(); await col.doc(reuso.id).update(d); }
+      else { d.creadoPor = yo.usuario; await col.add(d); }
+      await cargar(); mostrar(); msgAsig('Equipo ' + d.placa + ' asignado.', 'ok');
+    } catch (err) {
+      msgAsig(err && err.code === 'permission-denied' ? 'No tiene permiso para realizar esta acción.' : ((err && err.message) || 'No se pudo asignar.'), 'err');
+    }
+    $('asignar-btn').disabled = false;
+  });
 
   $('f-buscar').addEventListener('submit', async function (e) {
     e.preventDefault();
