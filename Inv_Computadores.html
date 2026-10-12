@@ -29,7 +29,8 @@
   .filtros{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px;margin-bottom:12px}
   .filtros .field{margin:0}
   .buscar{width:min(100%,340px)}
-  .tabla{overflow-x:auto}
+  .tabla{overflow:auto;max-height:70vh;border:1px solid var(--line);border-radius:6px}
+  .tabla th{position:sticky;top:0;background:var(--card);z-index:1}
   table{width:100%;min-width:960px;border-collapse:collapse;font-size:14px}
   th{padding:8px;text-align:left;font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);border-bottom:2px solid var(--line);white-space:nowrap}
   td{padding:8px;border-bottom:1px solid #e6e6e6;vertical-align:top}
