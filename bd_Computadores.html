@@ -41,6 +41,9 @@
   .denegado p{margin:0 0 14px}
   .req{color:var(--danger)}
   #eliminar.confirma{background:var(--danger);border-color:var(--danger);color:#fff}
+  .toast{position:fixed;left:50%;bottom:calc(24px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);z-index:50;max-width:min(92vw,520px);padding:14px 18px;border-radius:8px;background:#1f2937;color:#fff;font-size:15px;font-weight:600;box-shadow:0 8px 24px rgba(0,0,0,.3);border-left:6px solid #9ca3af}
+  .toast.ok{border-left-color:#16a34a}
+  .toast.err{border-left-color:#dc2626}
   th.sel,td.sel{width:34px;text-align:center}
   #archivo{width:min(100%,360px);height:auto;padding:8px 10px}
   .errores{margin:0 0 12px;padding-left:20px;font-size:14px;color:var(--err-ink)}
@@ -105,7 +108,6 @@
           <button class="sec mini" type="button" id="exp-txt">Exportar texto plano</button>
         </span>
       </div>
-      <p class="status" id="estado-tabla" role="status" aria-live="polite"></p>
       <div class="tabla">
         <table>
           <thead><tr id="encabezado"></tr></thead>
@@ -114,6 +116,8 @@
       </div>
     </section>
   </main>
+
+  <div id="toast" class="toast" role="alert" aria-live="assertive" hidden></div>
 
   <section class="card denegado" id="denegado" hidden>
     <h1 class="eyebrow">Acceso restringido</h1>
@@ -156,7 +160,13 @@
   var CAMPOS = [];
   GRUPOS.forEach(function (g) { g[1].forEach(function (c) { CAMPOS.push(c); }); });
 
-  function msgT(t, tipo) { $('estado-tabla').textContent = t || ''; $('estado-tabla').className = 'status' + (tipo ? ' ' + tipo : ''); }
+  var toastT = null;
+  function msgT(t, tipo) {
+    var box = $('toast'); clearTimeout(toastT);
+    if (!t) { box.hidden = true; return; }
+    box.textContent = t; box.className = 'toast ' + (tipo || ''); box.hidden = false;
+    if (t !== 'Eliminando…') toastT = setTimeout(function () { box.hidden = true; }, tipo === 'err' ? 9000 : 5000);
+  }
   function msg(t, tipo) { $('estado').textContent = t || ''; $('estado').className = 'status' + (tipo ? ' ' + tipo : ''); }
   function el(tag, props, hijos) {
     var e = document.createElement(tag);
