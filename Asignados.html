@@ -10,14 +10,20 @@
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;600;700&display=swap">
 <link rel="stylesheet" href="estilos.css">
 <style>
+  .modal{position:fixed;inset:0;z-index:100;background:rgba(0,0,0,.45);display:grid;place-items:center;padding:16px}
+  .modal[hidden]{display:none}
+  .modal-caja{background:var(--card);border-radius:8px;padding:22px;width:100%;max-width:480px;box-shadow:0 16px 40px rgba(0,0,0,.35);display:grid;gap:12px}
+  .modal-caja h3{margin:0;font-size:18px}
+  .modal-caja p{margin:0;line-height:1.45}
+  .modal-caja .acciones{display:flex;flex-wrap:wrap;gap:10px;justify-content:flex-end}
+  .celda-acc{display:flex;flex-wrap:wrap;gap:6px}
   .field.rel{position:relative}
   .sug{position:absolute;left:0;right:0;top:100%;z-index:30;max-height:260px;overflow:auto;list-style:none;margin:4px 0 0;padding:4px;background:var(--card);border:1px solid var(--line);border-radius:6px;box-shadow:0 8px 20px rgba(0,0,0,.18)}
   .sug li{padding:8px 10px;border-radius:4px;cursor:pointer;font-size:14px;display:flex;flex-wrap:wrap;gap:2px 10px;align-items:baseline}
   .sug li b{font-weight:700}
   .sug li small{color:var(--muted);font-size:12px}
   .sug li.act,.sug li:hover{background:var(--ground)}
-  .sug li.oc{cursor:default;color:var(--muted)}
-  .sug li.oc:hover{background:none}
+  .sug li.oc{color:var(--muted)}
   .barra{display:flex;flex-wrap:wrap;align-items:center;gap:6px 18px;max-width:1200px;margin:0 auto;padding-block:14px}
   .barra .marca{margin:0;font-size:18px;font-weight:700;letter-spacing:.01em;flex:1 1 auto}
   .barra .marca span{color:var(--muted);font-weight:600}
@@ -93,6 +99,22 @@
       </div>
     </section>
   </main>
+
+  <div class="modal" id="modal" role="dialog" aria-modal="true" aria-labelledby="modal-titulo" hidden>
+    <div class="modal-caja">
+      <h3 id="modal-titulo">Reasignar equipo</h3>
+      <p id="modal-texto"></p>
+      <div class="field" id="modal-cc-caja" hidden>
+        <label for="modal-cc">CC del usuario que recibirá la placa</label>
+        <input id="modal-cc" type="search" autocomplete="off" list="lista-cc" placeholder="Número de CC…">
+      </div>
+      <p class="status err" id="modal-err" hidden></p>
+      <div class="acciones">
+        <button class="sec" type="button" id="modal-no">Cancelar</button>
+        <button class="go" type="button" id="modal-si">Sí, reasignar</button>
+      </div>
+    </div>
+  </div>
 
   <section class="card denegado" id="denegado" hidden>
     <h1 class="eyebrow">Acceso restringido</h1>
@@ -210,7 +232,13 @@
     filas.forEach(function (f) {
       var celdas = COLS.map(function (k) { return el('td', { text: limpio(f.eq ? f.eq[k] : '') || (k === 'placa' ? f.placa : '') }); });
       celdas.push(el('td', { text: f.estado }));
-      celdas.push(el('td', {}, [botonQuitar(f)]));
+      var acc = [botonQuitar(f)];
+      if (f.eq) {
+        var br = el('button', { cls: 'sec mini', type: 'button', text: 'Reasignar' });
+        br.addEventListener('click', function () { abrirReasignar(f.eq, true); });
+        acc.unshift(br);
+      }
+      celdas.push(el('td', {}, [el('div', { cls: 'celda-acc' }, acc)]));
       tb.appendChild(el('tr', {}, celdas));
     });
     actual = { q: q, datos: origen };
@@ -239,12 +267,10 @@
       var oc = ocupado(e), d = asignaciones.filter(function (a) { return limpio(a.cc) && norm(a.placa) === norm(e.placa); })[0];
       var det = [e.hostname, e.marca, e.modelo].map(limpio).filter(Boolean).join(' ');
       var li = el('li', { cls: oc ? 'oc' : '' }, [el('b', { text: limpio(e.placa) }),
-        el('small', { text: oc ? 'Ya asignada a la CC ' + limpio((d && d.cc) || e.cc) : det })]);
+        el('small', { text: oc ? 'Asignada a la CC ' + limpio((d && d.cc) || e.cc) + ' (se puede reasignar)' : det })]);
       li.setAttribute('role', 'option');
-      if (!oc) {
-        li.addEventListener('mousedown', function (ev) { ev.preventDefault(); elegir(limpio(e.placa)); });
-        sugItems.push({ li: li, placa: limpio(e.placa) });
-      }
+      li.addEventListener('mousedown', function (ev) { ev.preventDefault(); elegir(limpio(e.placa)); });
+      sugItems.push({ li: li, placa: limpio(e.placa) });
       ul.appendChild(li);
     });
     if (!lista.length) { var v = el('li', { cls: 'oc', text: 'Ninguna placa contiene ese número.' }); ul.appendChild(v); }
@@ -262,6 +288,95 @@
       sugPos = e.key === 'ArrowDown' ? (sugPos + 1) % sugItems.length : (sugPos <= 0 ? sugItems.length - 1 : sugPos - 1); resaltar();
     } else if (e.key === 'Enter' && abierto && sugPos >= 0) { e.preventDefault(); elegir(sugItems[sugPos].placa); }
     else if (e.key === 'Escape') cerrarSug();
+  });
+
+  /* ---------- reasignar: pasar una placa de un usuario a otro ---------- */
+  function datosPersona(ccTxt) {
+    var q = norm(ccTxt), p = personas.filter(function (x) { return norm(x.cc) === q; })[0], d = {};
+    var prop = asignaciones.filter(function (a) { return norm(a.cc) === q; });
+    DATOS.forEach(function (c) {
+      d[c[0]] = limpio(p && p[c[0]]);
+      if (!d[c[0]]) prop.forEach(function (a) { if (!d[c[0]] && limpio(a[c[0]])) d[c[0]] = limpio(a[c[0]]); });
+    });
+    if (!d.cc) d.cc = limpio(ccTxt);
+    return { datos: d, existe: !!(p || prop.length), nombre: (d.nombres + ' ' + d.apellidos).trim() };
+  }
+  function duenoDe(eq) {
+    var a = asignaciones.filter(function (x) { return limpio(x.cc) && ((limpio(eq.placa) && norm(x.placa) === norm(eq.placa)) || (x.id === eq.id && !x.liberado)); })[0];
+    var cc = a ? limpio(a.cc) : limpio(eq.cc);
+    return cc ? { cc: cc, nombre: datosPersona(cc).nombre } : null;
+  }
+  function quien(u) { return (u.nombre ? u.nombre + ' ' : '') + '(CC ' + u.cc + ')'; }
+  async function liberarPlaca(eq) {
+    var col = firebase.firestore().collection('computadores'), ts = firebase.firestore.FieldValue.serverTimestamp();
+    var duenos = asignaciones.filter(function (x) { return limpio(x.cc) && ((limpio(eq.placa) && norm(x.placa) === norm(eq.placa)) || (x.id === eq.id && !x.liberado)); });
+    for (var i = 0; i < duenos.length; i++) {
+      await col.doc(duenos[i].id).update({ placaAnterior: limpio(eq.placa), placa: '', liberado: ts, liberadoPor: yo.usuario, actualizadoPor: yo.usuario, actualizado: ts });
+    }
+  }
+  // Escribe la asignacion de la placa a la persona (datos = objeto con los DATOS de esa persona)
+  async function asignarPlaca(eq, datos) {
+    var ts = firebase.firestore.FieldValue.serverTimestamp(), q = norm(datos.cc);
+    var d = {};
+    DATOS.forEach(function (c) { d[c[0]] = limpio(datos[c[0]]); });
+    d.placa = limpio(eq.placa); d.estado = limpio(eq.estado) || 'Activo';
+    d.actualizadoPor = yo.usuario; d.actualizado = ts;
+    var col = firebase.firestore().collection('computadores');
+    var reuso = asignaciones.filter(function (a) { return norm(a.cc) === q && !limpio(a.placa) && a.liberado; })[0];
+    if (reuso) { d.liberado = firebase.firestore.FieldValue.delete(); await col.doc(reuso.id).update(d); }
+    else { d.creadoPor = yo.usuario; await col.add(d); }
+    await firebase.firestore().collection('bd_computadores').doc(eq.id).update({ cc: limpio(datos.cc), actualizadoPor: yo.usuario, actualizado: ts });
+  }
+  async function moverPlaca(eq, ccDestino) {
+    var dest = datosPersona(ccDestino);
+    await liberarPlaca(eq);
+    if (!(await cargar())) throw new Error('No se pudo actualizar la información.');
+    await asignarPlaca(eq, dest.datos);
+    await cargar(); mostrar();
+  }
+
+  var modalCfg = null;
+  function modalDestino() { return modalCfg.pedirCC ? limpio($('modal-cc').value) : modalCfg.ccFijo; }
+  function modalRefrescar() {
+    var eq = modalCfg.eq, dueno = duenoDe(eq), dest = modalDestino(), err = '', ok = false, texto;
+    var placa = limpio(eq.placa);
+    if (!dueno) texto = 'La placa ' + placa + ' no está asignada a nadie.';
+    else if (!dest) texto = 'La placa ' + placa + ' está asignada a ' + quien(dueno) + '. Escriba la CC del usuario que la recibirá.';
+    else {
+      var dd = datosPersona(dest);
+      if (norm(dest) === norm(dueno.cc)) { texto = 'La placa ' + placa + ' ya está asignada a ' + quien(dueno) + '.'; err = 'Elija una CC distinta.'; }
+      else if (!dd.existe) { texto = 'La placa ' + placa + ' está asignada a ' + quien(dueno) + '.'; err = 'No se encontró la CC ' + dest + ' en bd_personas.'; }
+      else { texto = '¿Confirma que desea asignar la placa ' + placa + ', que está asignada a ' + quien(dueno) + ', a este otro usuario: ' + quien({ cc: dd.datos.cc, nombre: dd.nombre }) + '?'; ok = true; }
+    }
+    $('modal-texto').textContent = texto;
+    $('modal-err').hidden = !err; $('modal-err').textContent = err;
+    $('modal-si').disabled = !ok;
+  }
+  function abrirReasignar(eq, pedirCC, ccFijo) {
+    modalCfg = { eq: eq, pedirCC: pedirCC, ccFijo: ccFijo || '' };
+    $('modal-cc-caja').hidden = !pedirCC; $('modal-cc').value = '';
+    $('modal-titulo').textContent = 'Reasignar equipo ' + limpio(eq.placa);
+    $('modal').hidden = false; modalRefrescar();
+    if (pedirCC) $('modal-cc').focus(); else $('modal-si').focus();
+  }
+  function cerrarModal() { $('modal').hidden = true; modalCfg = null; }
+  $('modal-cc').addEventListener('input', function () { if (modalCfg) modalRefrescar(); });
+  $('modal-no').addEventListener('click', cerrarModal);
+  $('modal').addEventListener('mousedown', function (e) { if (e.target === $('modal')) cerrarModal(); });
+  document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && !$('modal').hidden) cerrarModal(); });
+  $('modal-si').addEventListener('click', async function () {
+    if (!modalCfg) return;
+    var cfg = modalCfg, dest = modalDestino();
+    $('modal-si').disabled = true; $('modal-no').disabled = true;
+    try {
+      await moverPlaca(cfg.eq, dest);
+      cerrarModal(); msgAsig('Placa ' + limpio(cfg.eq.placa) + ' reasignada a la CC ' + dest + '.', 'ok');
+    } catch (err) {
+      $('modal-err').hidden = false;
+      $('modal-err').textContent = err && err.code === 'permission-denied' ? 'No tiene permiso para realizar esta acción.' : ((err && err.message) || 'No se pudo reasignar.');
+      $('modal-si').disabled = false;
+    }
+    $('modal-no').disabled = false;
   });
 
   function botonQuitar(f) {
@@ -301,19 +416,13 @@
       var eq = equipos.filter(function (x) { return norm(x.placa) === v; })[0];
       if (!eq) throw new Error('No existe la placa ' + limpio($('placa-nueva').value) + ' en bd_Computadores.');
       if (ocupado(eq)) {
-        var dueño = asignaciones.filter(function (a) { return limpio(a.cc) && norm(a.placa) === v; })[0] || (limpio(eq.cc) ? eq : null);
-        throw new Error('Esa placa ya está asignada' + (dueño ? ' a la CC ' + limpio(dueño.cc) : '') + '. Quítela primero.');
+        var du = duenoDe(eq);
+        if (du && norm(du.cc) === actual.q) throw new Error('Esa placa ya está asignada a esta persona.');
+        msgAsig(''); abrirReasignar(eq, false, limpio(actual.datos.cc) || limpio($('cc').value));
+        $('asignar-btn').disabled = false; return;
       }
-      var d = {};
-      DATOS.forEach(function (c) { d[c[0]] = limpio(actual.datos[c[0]]); });
-      d.placa = limpio(eq.placa); d.estado = limpio(eq.estado) || 'Activo';
-      d.actualizadoPor = yo.usuario; d.actualizado = firebase.firestore.FieldValue.serverTimestamp();
-      var col = firebase.firestore().collection('computadores');
-      var reuso = asignaciones.filter(function (a) { return norm(a.cc) === actual.q && !limpio(a.placa) && a.liberado; })[0];
-      if (reuso) { d.liberado = firebase.firestore.FieldValue.delete(); await col.doc(reuso.id).update(d); }
-      else { d.creadoPor = yo.usuario; await col.add(d); }
-      await firebase.firestore().collection('bd_computadores').doc(eq.id).update({ cc: limpio(actual.datos.cc) || limpio($('cc').value), actualizadoPor: yo.usuario, actualizado: firebase.firestore.FieldValue.serverTimestamp() });
-      await cargar(); mostrar(); msgAsig('Equipo ' + d.placa + ' asignado.', 'ok');
+      await asignarPlaca(eq, actual.datos);
+      await cargar(); mostrar(); msgAsig('Equipo ' + limpio(eq.placa) + ' asignado.', 'ok');
     } catch (err) {
       msgAsig(err && err.code === 'permission-denied' ? 'No tiene permiso para realizar esta acción.' : ((err && err.message) || 'No se pudo asignar.'), 'err');
     }
