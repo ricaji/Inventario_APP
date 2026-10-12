@@ -72,7 +72,7 @@
 
     <section class="card">
       <h2>Importar desde Excel</h2>
-      <p class="nota">Se importa todo el archivo, aunque tenga datos faltantes o repetidos; luego puede corregirlos con Editar. Suba un archivo .xlsx, .xls o .csv con los encabezados en la primera fila (PLACA, TIPO 1, TIPO 2, HOSTNAME, MARCA, MODELO, SERIAL, PROCESADOR, GENERACIÓN, RAM, TIPO, DD CANTIDAD 1, DD TIPO 1, DD CANTIDAD 2, DD TIPO 2, WINDOWS, CLAVE, OFFICE, ACTIVACIÓN, ANTIVIRUS, OBSERVACIONES). La columna ESTADO (Activo, Baja o Garantía) es opcional: si no está, todos quedan como Activo.</p>
+      <p class="nota">Se importa todo el archivo, aunque tenga datos faltantes o repetidos; luego puede corregirlos con Editar. Suba un archivo .xlsx, .xls o .csv con los encabezados en la primera fila (PLACA, TIPO, TIPO 2, HOSTNAME, MARCA, MODELO, SERIAL, ESTADO, PROCESADOR, GENERACIÓN, RAM, TIPO, DISCO, TIPO DD, DISCO 2, TIPO DD 2, S.O., CLAVE, TIPO OFFICE, ACTIVACIÓN, ANTIVIRUS, OBSERVACIONES, DOCUMENTO DE IDENTIDAD). La PLACA es la llave de cada computador: una fila sin placa no se importa y, si la placa ya existe, se actualiza ese registro. ESTADO (Activo, Baja o Garantía) es opcional: si no está, queda Activo.</p>
       <div class="acciones">
         <input id="archivo" type="file" accept=".xlsx,.xls,.csv" aria-label="Archivo de Excel">
         <button class="sec" type="button" id="plantilla">Descargar plantilla</button>
@@ -93,7 +93,7 @@
         <h2>Computadores registrados <span id="total" class="nota"></span></h2>
         <div class="field buscar">
           <label for="buscar">Buscar</label>
-          <input id="buscar" type="search" autocomplete="off" placeholder="Placa, hostname, serial, marca…">
+          <input id="buscar" type="search" autocomplete="off" placeholder="Placa, documento, hostname, serial, marca…">
         </div>
       </div>
       <div class="filtros" id="filtros"></div>
@@ -107,7 +107,7 @@
       </div>
       <div class="tabla">
         <table>
-          <thead><tr><th>Placa</th><th>CC asignada</th><th>Asignado a</th><th>Tipo 1</th><th>Tipo 2</th><th>Hostname</th><th>Marca</th><th>Modelo</th><th>Serial</th><th>Estado</th><th>Procesador</th><th>Generación</th><th>RAM</th><th>Windows</th><th>Office</th><th>Antivirus</th><th>Acciones</th></tr></thead>
+          <thead><tr id="encabezado"></tr></thead>
           <tbody id="tbody"></tbody>
         </table>
       </div>
@@ -137,18 +137,19 @@
   // Grupos de preguntas del formulario: [clave, etiqueta, obligatorio, tipo, opciones]
   var GRUPOS = [
     ['Equipo', [
-      ['placa', 'Placa', true], ['tipo1', 'Tipo 1', false, 'select', TIPOS1], ['tipo2', 'Tipo 2', false, 'select', TIPOS2],
+      ['placa', 'Placa', true], ['tipo1', 'Tipo', false, 'select', TIPOS1], ['tipo2', 'Tipo 2', false, 'select', TIPOS2],
       ['hostname', 'Hostname', true], ['marca', 'Marca'], ['modelo', 'Modelo'], ['serial', 'Serial'],
       ['estado', 'Estado', true, 'select', ESTADOS]
     ]],
     ['Hardware', [
-      ['procesador', 'Procesador'], ['generacion', 'Generación'], ['ram', 'RAM'], ['ramTipo', 'Tipo (RAM)'],
-      ['dd1Cantidad', 'DD cantidad 1'], ['dd1Tipo', 'DD tipo 1'], ['dd2Cantidad', 'DD cantidad 2'], ['dd2Tipo', 'DD tipo 2']
+      ['procesador', 'Procesador'], ['generacion', 'Generación'], ['ram', 'RAM'], ['ramTipo', 'Tipo RAM'],
+      ['dd1Cantidad', 'Disco'], ['dd1Tipo', 'Tipo DD'], ['dd2Cantidad', 'Disco 2'], ['dd2Tipo', 'Tipo DD 2']
     ]],
     ['Software', [
-      ['windows', 'Windows'], ['clave', 'Clave'], ['office', 'Office'], ['activacion', 'Activación'], ['antivirus', 'Antivirus']
+      ['windows', 'S.O.'], ['clave', 'Clave'], ['office', 'Tipo Office'], ['activacion', 'Activación'], ['antivirus', 'Antivirus']
     ]],
-    ['Observaciones', [['observaciones', 'Observaciones', false, 'area']]]
+    ['Observaciones', [['observaciones', 'Observaciones', false, 'area']]],
+    ['Asignación', [['cc', 'Documento de Identidad']]]
   ];
   var CAMPOS = [];
   GRUPOS.forEach(function (g) { g[1].forEach(function (c) { CAMPOS.push(c); }); });
@@ -160,12 +161,16 @@
     (hijos || []).forEach(function (h) { e.appendChild(h); });
     return e;
   }
+  // La placa es la llave: es el id del documento
+  function idDe(placa) { return limpio(placa).replace(/\//g, '-'); }
   function limpio(v) { return String(v == null ? '' : v).trim(); }
   function norm(v) { return limpio(v).toLowerCase(); }
 
   /* ---------- formulario ---------- */
   function construirFormulario() {
     var cont = $('campos');
+    CAMPOS.forEach(function (c) { $('encabezado').appendChild(el('th', { text: c[1] })); });
+    $('encabezado').appendChild(el('th', { text: 'Acciones' }));
     GRUPOS.forEach(function (g) {
       var grid = el('div', { cls: 'grid' });
       g[1].forEach(function (c) {
@@ -200,6 +205,7 @@
   }
   function salirEdicion() {
     editando = null;
+    $('c-placa').disabled = false;
     ponerValores({});
     $('form-titulo').textContent = 'Registrar computador';
     $('guardar').textContent = 'Guardar computador';
@@ -212,7 +218,8 @@
     $('guardar').textContent = 'Guardar cambios';
     $('cancelar').hidden = false;
     msg('');
-    $('c-placa').focus();
+    $('c-placa').disabled = true;
+    $('c-cc').focus();
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }
   $('cancelar').addEventListener('click', function () { salirEdicion(); msg(''); });
@@ -238,8 +245,8 @@
       var col = firebase.firestore().collection(COL);
       d.actualizadoPor = yo.usuario;
       d.actualizado = firebase.firestore.FieldValue.serverTimestamp();
-      if (editando) { await col.doc(editando).update(d); msg('Computador actualizado.', 'ok'); }
-      else { d.creadoPor = yo.usuario; await col.add(d); msg('Computador registrado.', 'ok'); }
+      if (editando) { delete d.placa; await col.doc(editando).update(d); msg('Computador actualizado.', 'ok'); }
+      else { d.creadoPor = yo.usuario; await col.doc(idDe(d.placa)).set(d); msg('Computador registrado.', 'ok'); }
       salirEdicion();
       await cargar();
     } catch (err) {
@@ -262,6 +269,7 @@
       equipos.forEach(function (e) {
         var a = (limpio(e.placa) && porPlaca[norm(e.placa)]) || porId[e.id] || null;
         e.ccAsignada = a ? limpio(a.cc) : '';
+        if (!limpio(e.cc)) e.cc = e.ccAsignada;
         e.asignadoA = a ? (limpio(a.nombres) + ' ' + limpio(a.apellidos)).trim() : '';
       });
     } catch (err) { /* sin acceso a las asignaciones: se muestra el resto */ }
@@ -278,7 +286,7 @@
       msg(err && err.code === 'permission-denied' ? 'No tiene permiso para ver los computadores.' : ((err && err.message) || 'No se pudo cargar la lista.'), 'err');
     }
   }
-  var FILTROS = [['placa', 'Placa'], ['ccAsignada', 'CC asignada'], ['tipo1', 'Tipo 1'], ['tipo2', 'Tipo 2'], ['hostname', 'Hostname'], ['serial', 'Serial'], ['marca', 'Marca']];
+  var FILTROS = [['placa', 'Placa'], ['cc', 'Documento de Identidad'], ['tipo1', 'Tipo'], ['tipo2', 'Tipo 2'], ['hostname', 'Hostname'], ['serial', 'Serial'], ['marca', 'Marca']];
   var filtroVal = {};
   var visibles = [];
   function hayFiltro0(q) { return !!q || FILTROS.some(function (f) { return norm(filtroVal[f[0]]); }); }
@@ -313,46 +321,30 @@
         if (norm(v) && norm(eq[FILTROS[i][0]]).indexOf(norm(v)) < 0) return false;
       }
       if (!q) return true;
-      return CAMPOS.some(function (c) { return norm(eq[c[0]]).indexOf(q) >= 0; }) || norm(eq.ccAsignada).indexOf(q) >= 0 || norm(eq.asignadoA).indexOf(q) >= 0;
+      return CAMPOS.some(function (c) { return norm(eq[c[0]]).indexOf(q) >= 0; });
     });
     visibles = lista;
     $('conteo').textContent = (hayFiltro0(q) ? 'Resultados: ' : 'Total: ') + lista.length + (hayFiltro0(q) ? ' de ' + equipos.length + ' computadores' : ' computadores');
     var hayFiltro = q || FILTROS.some(function (f) { return filtroVal[f[0]]; });
     $('total').textContent = '(' + lista.length + (hayFiltro ? ' de ' + equipos.length : '') + ')';
     if (!lista.length) {
-      tb.appendChild(el('tr', {}, [el('td', { colSpan: 17, cls: 'vacio', text: equipos.length ? 'Ningún computador coincide con la búsqueda.' : 'Aún no hay computadores registrados.' })]));
+      tb.appendChild(el('tr', {}, [el('td', { colSpan: CAMPOS.length + 1, cls: 'vacio', text: equipos.length ? 'Ningún computador coincide con la búsqueda.' : 'Aún no hay computadores registrados.' })]));
       return;
     }
     lista.forEach(function (eq) {
       var bEd = el('button', { cls: 'sec mini', type: 'button', text: 'Editar' });
       bEd.addEventListener('click', function () { editar(eq); });
-      tb.appendChild(el('tr', {}, [
-        el('td', { text: eq.placa || '' }),
-        el('td', { text: eq.ccAsignada || '' }),
-        el('td', { text: eq.asignadoA || '' }),
-        el('td', { text: eq.tipo1 || '' }),
-        el('td', { text: eq.tipo2 || '' }),
-        el('td', { text: eq.hostname || '' }),
-        el('td', { text: eq.marca || '' }),
-        el('td', { text: eq.modelo || '' }),
-        el('td', { text: eq.serial || '' }),
-        el('td', { text: eq.estado || '' }),
-        el('td', { text: eq.procesador || '' }),
-        el('td', { text: eq.generacion || '' }),
-        el('td', { text: eq.ram || '' }),
-        el('td', { text: eq.windows || '' }),
-        el('td', { text: eq.office || '' }),
-        el('td', { text: eq.antivirus || '' }),
-        el('td', {}, [bEd])
-      ]));
+      var celdas = CAMPOS.map(function (c) { return el('td', { text: eq[c[0]] || '' }); });
+      celdas.push(el('td', {}, [bEd]));
+      tb.appendChild(el('tr', {}, celdas));
     });
   }
   $('buscar').addEventListener('input', pintar);
 
   /* ---------- exportar lo que se está viendo ---------- */
   function filasExport() {
-    var enc = CAMPOS.map(function (c) { return c[1]; }).concat(['CC asignada', 'Asignado a']);
-    return [enc].concat(visibles.map(function (e) { return CAMPOS.map(function (c) { return limpio(e[c[0]]); }).concat([limpio(e.ccAsignada), limpio(e.asignadoA)]); }));
+    var enc = CAMPOS.map(function (c) { return c[1]; });
+    return [enc].concat(visibles.map(function (e) { return CAMPOS.map(function (c) { return limpio(e[c[0]]); }); }));
   }
   function descargar(contenido, nombre, tipo) {
     var url = URL.createObjectURL(new Blob([contenido], { type: tipo }));
@@ -384,9 +376,12 @@
   var ENCAB = {};   // encabezado normalizado -> clave del campo
   function normEnc(v) { return String(v == null ? '' : v).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase().replace(/[^A-Z0-9]+/g, ' ').trim(); }
   CAMPOS.forEach(function (c) { ENCAB[normEnc(c[1])] = c[0]; });
-  ENCAB['TIPO'] = 'ramTipo';           // en el Excel, el TIPO que sigue a RAM
+  ENCAB['TIPO'] = 'tipo1'; ENCAB['TIPO 1'] = 'tipo1';   // un segundo TIPO (el que sigue a RAM) pasa a Tipo RAM
+  ENCAB['DISCO'] = 'dd1Cantidad'; ENCAB['TIPO DD'] = 'dd1Tipo'; ENCAB['DISCO 2'] = 'dd2Cantidad'; ENCAB['TIPO DD 2'] = 'dd2Tipo';
   ENCAB['DD CANTIDAD 1'] = 'dd1Cantidad'; ENCAB['DD TIPO 1'] = 'dd1Tipo';
   ENCAB['DD CANTIDAD 2'] = 'dd2Cantidad'; ENCAB['DD TIPO 2'] = 'dd2Tipo';
+  ENCAB['S O'] = 'windows'; ENCAB['WINDOWS'] = 'windows'; ENCAB['TIPO OFFICE'] = 'office'; ENCAB['OFFICE'] = 'office';
+  ENCAB['DOCUMENTO DE IDENTIDAD'] = 'cc'; ENCAB['CC'] = 'cc'; ENCAB['TIPO RAM'] = 'ramTipo'; ENCAB['TIPO RAM'] = 'ramTipo';
   var pendientes = [];
   function estadoDe(v) {
     var n = normEnc(v);
@@ -407,6 +402,7 @@
     var mapa = {};   // índice de columna -> campo
     filas[iEnc].forEach(function (h, j) {
       var campo = ENCAB[normEnc(h)];
+      if (normEnc(h) === 'TIPO' && Object.keys(mapa).some(function (k) { return mapa[k] === 'tipo1'; })) campo = 'ramTipo';
       if (campo && !Object.keys(mapa).some(function (k) { return mapa[k] === campo; })) mapa[j] = campo;
       else if (limpio(h) !== '') res.ignoradas.push(limpio(h));
     });
@@ -421,6 +417,7 @@
       CAMPOS.forEach(function (c) { d[c[0]] = ''; });
       Object.keys(mapa).forEach(function (j) { d[mapa[j]] = limpio(fila[j]); });
       var avisos = [];
+      if (!d.placa) { res.errores.push('Fila ' + (f + 1) + ': sin PLACA, no se importa (la placa es la llave).'); continue; }
       var est = estadoDe(d.estado);
       if (est === null) { avisos.push('estado "' + d.estado + '" no válido, se dejó Activo'); est = 'Activo'; }
       d.estado = est;
@@ -477,7 +474,7 @@
           var x = Object.assign({}, d);
           x.creadoPor = yo.usuario; x.actualizadoPor = yo.usuario; x.importado = true;
           x.actualizado = firebase.firestore.FieldValue.serverTimestamp();
-          batch.set(col.doc(), x);
+          batch.set(col.doc(idDe(x.placa)), x, { merge: true });
         });
         await batch.commit();
       }
@@ -491,7 +488,7 @@
   });
   $('plantilla').addEventListener('click', function () {
     if (!window.XLSX) { msgImp('No se pudo cargar el lector de Excel.', 'err'); return; }
-    var enc = ['PLACA', 'TIPO 1', 'TIPO 2', 'HOSTNAME', 'MARCA', 'MODELO', 'SERIAL', 'PROCESADOR', 'GENERACIÓN', 'RAM', 'TIPO', 'DD CANTIDAD 1', 'DD TIPO 1', 'DD CANTIDAD 2', 'DD TIPO 2', 'WINDOWS', 'CLAVE', 'OFFICE', 'ACTIVACIÓN', 'ANTIVIRUS', 'OBSERVACIONES', 'ESTADO'];
+    var enc = ['PLACA', 'TIPO', 'TIPO 2', 'HOSTNAME', 'MARCA', 'MODELO', 'SERIAL', 'ESTADO', 'PROCESADOR', 'GENERACIÓN', 'RAM', 'TIPO', 'DISCO', 'TIPO DD', 'DISCO 2', 'TIPO DD 2', 'S.O.', 'CLAVE', 'TIPO OFFICE', 'ACTIVACIÓN', 'ANTIVIRUS', 'OBSERVACIONES', 'DOCUMENTO DE IDENTIDAD'];
     var wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([enc]), 'Computadores');
     XLSX.writeFile(wb, 'plantilla_bd_computadores.xlsx');
