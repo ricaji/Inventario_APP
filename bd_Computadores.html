@@ -103,6 +103,7 @@
         <span class="botones">
           <button class="sec mini" type="button" id="eliminar" hidden>Eliminar seleccionados</button>
           <button class="sec mini" type="button" id="eliminar-no" hidden>Cancelar</button>
+          <button class="sec mini" type="button" id="dup">Ver duplicados</button>
           <button class="sec mini" type="button" id="exp-xlsx">Exportar Excel</button>
           <button class="sec mini" type="button" id="exp-csv">Exportar CSV</button>
           <button class="sec mini" type="button" id="exp-txt">Exportar texto plano</button>
@@ -369,6 +370,33 @@
     $('eliminar').disabled = false;
   });
   $('eliminar-no').addEventListener('click', function () { confirmando = false; msgT(''); actualizarSeleccion(); });
+  /* ---------- duplicados: misma placa, mismo hostname o mismo serial ---------- */
+  var soloDup = false;
+  var CLAVES_DUP = [['placa', 'placa'], ['hostname', 'hostname'], ['serial', 'serial']];
+  function duplicados() {
+    var set = {}, cuenta = {}, total = 0;
+    CLAVES_DUP.forEach(function (c) {
+      var grupos = {}; cuenta[c[0]] = 0;
+      equipos.forEach(function (e) {
+        var k = norm(e[c[0]]).replace(/\s+/g, '');
+        if (k) (grupos[k] = grupos[k] || []).push(e);
+      });
+      Object.keys(grupos).forEach(function (k) {
+        if (grupos[k].length > 1) { cuenta[c[0]]++; grupos[k].forEach(function (e) { if (!set[e.id]) set[e.id] = c[0] + '|' + k; }); }
+      });
+    });
+    Object.keys(set).forEach(function () { total++; });
+    return { set: set, cuenta: cuenta, total: total };
+  }
+  $('dup').addEventListener('click', function () {
+    soloDup = !soloDup; confirmando = false;
+    $('dup').textContent = soloDup ? 'Ver todos' : 'Ver duplicados';
+    if (soloDup) {
+      var d = duplicados();
+      msgT(d.total ? 'Hay ' + d.total + ' registros duplicados: ' + d.cuenta.placa + ' placa(s), ' + d.cuenta.hostname + ' hostname(s) y ' + d.cuenta.serial + ' serial(es) repetidos. Se muestran juntos; marque los que sobran y elimínelos.' : 'No se encontraron computadores duplicados (ni por placa, ni por hostname, ni por serial).', d.total ? 'err' : 'ok');
+    } else msgT('');
+    pintar();
+  });
   function pintar() {
     var q = '', tb = $('tbody'); tb.textContent = '';
     armarFiltros();
@@ -380,6 +408,10 @@
       if (!q) return true;
       return CAMPOS.some(function (c) { return norm(eq[c[0]]).indexOf(q) >= 0; });
     });
+    if (soloDup) {
+      var dd = duplicados().set;
+      lista = lista.filter(function (e) { return dd[e.id]; }).sort(function (a, b) { return dd[a.id] < dd[b.id] ? -1 : dd[a.id] > dd[b.id] ? 1 : 0; });
+    }
     visibles = lista;
     $('conteo').textContent = (hayFiltro0(q) ? 'Resultados: ' : 'Total: ') + lista.length + (hayFiltro0(q) ? ' de ' + equipos.length + ' computadores' : ' computadores');
     var hayFiltro = q || FILTROS.some(function (f) { return filtroVal[f[0]]; });
