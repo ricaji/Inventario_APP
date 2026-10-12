@@ -40,6 +40,8 @@
   .denegado{max-width:520px;margin:48px auto}
   .denegado p{margin:0 0 14px}
   .req{color:var(--danger)}
+  #eliminar.confirma{background:var(--danger);border-color:var(--danger);color:#fff}
+  th.sel,td.sel{width:34px;text-align:center}
   #archivo{width:min(100%,360px);height:auto;padding:8px 10px}
   .errores{margin:0 0 12px;padding-left:20px;font-size:14px;color:var(--err-ink)}
   .nota{margin:0 0 12px;font-size:13px;color:var(--muted)}
@@ -96,6 +98,8 @@
       <div class="exporta">
         <strong id="conteo" role="status" aria-live="polite"></strong>
         <span class="botones">
+          <button class="sec mini" type="button" id="eliminar" hidden>Eliminar seleccionados</button>
+          <button class="sec mini" type="button" id="eliminar-no" hidden>Cancelar</button>
           <button class="sec mini" type="button" id="exp-xlsx">Exportar Excel</button>
           <button class="sec mini" type="button" id="exp-csv">Exportar CSV</button>
           <button class="sec mini" type="button" id="exp-txt">Exportar texto plano</button>
@@ -126,6 +130,7 @@
   var $ = function (id) { return document.getElementById(id); };
   var COL = 'bd_computadores';
   var yo = null, editando = null, equipos = [];
+  var seleccion = {}, confirmando = false;
 
   var ESTADOS = ['Activo', 'Baja', 'Garantía'];
   var TIPOS1 = ['', 'Computador', 'Celular', 'Tablet'];
@@ -165,6 +170,13 @@
   /* ---------- formulario ---------- */
   function construirFormulario() {
     var cont = $('campos');
+    var todos = el('input', { type: 'checkbox', id: 'sel-todos', title: 'Seleccionar todos los que se ven' });
+    todos.setAttribute('aria-label', 'Seleccionar todos los que se ven');
+    todos.addEventListener('change', function () {
+      visibles.forEach(function (e) { if (todos.checked) seleccion[e.id] = 1; else delete seleccion[e.id]; });
+      confirmando = false; pintar();
+    });
+    $('encabezado').appendChild(el('th', { cls: 'sel' }, [todos]));
     CAMPOS.forEach(function (c) { $('encabezado').appendChild(el('th', { text: c[1] })); });
     $('encabezado').appendChild(el('th', { text: 'Acciones' }));
     GRUPOS.forEach(function (g) {
@@ -308,6 +320,43 @@
         .forEach(function (v) { dl.appendChild(el('option', { value: v })); });
     });
   }
+  /* ---------- eliminar uno o varios ---------- */
+  function idsSel() { return equipos.filter(function (e) { return seleccion[e.id]; }).map(function (e) { return e.id; }); }
+  function actualizarSeleccion() {
+    var n = idsSel().length, b = $('eliminar'), t = $('sel-todos');
+    b.hidden = !n; $('eliminar-no').hidden = !n || !confirmando;
+    b.className = 'sec mini' + (confirmando ? ' confirma' : '');
+    b.textContent = confirmando ? 'Sí, eliminar ' + n + ' definitivamente' : 'Eliminar seleccionados (' + n + ')';
+    if (t) {
+      var vis = visibles.filter(function (e) { return seleccion[e.id]; }).length;
+      t.checked = !!visibles.length && vis === visibles.length;
+      t.indeterminate = vis > 0 && vis < visibles.length;
+    }
+  }
+  $('eliminar').addEventListener('click', async function () {
+    var ids = idsSel();
+    if (!ids.length) return;
+    if (!confirmando) { confirmando = true; actualizarSeleccion(); msg('Se eliminarán ' + ids.length + ' computador(es). Esta acción no se puede deshacer; confirme o cancele.', 'err'); return; }
+    $('eliminar').disabled = true; msg('Eliminando…');
+    try {
+      var db = firebase.firestore(), col = db.collection(COL);
+      for (var i = 0; i < ids.length; i += 400) {
+        var batch = db.batch();
+        ids.slice(i, i + 400).forEach(function (id) { batch.delete(col.doc(id)); });
+        await batch.commit();
+      }
+      seleccion = {}; confirmando = false;
+      if (editando && ids.indexOf(editando) >= 0) salirEdicion();
+      msg('Se eliminaron ' + ids.length + ' computador(es).', 'ok');
+      await cargar();
+    } catch (err) {
+      confirmando = false;
+      msg(err && err.code === 'permission-denied' ? 'No tiene permiso para eliminar (revise las reglas de Firestore).' : ((err && err.message) || 'No se pudo eliminar.'), 'err');
+      actualizarSeleccion();
+    }
+    $('eliminar').disabled = false;
+  });
+  $('eliminar-no').addEventListener('click', function () { confirmando = false; msg(''); actualizarSeleccion(); });
   function pintar() {
     var q = '', tb = $('tbody'); tb.textContent = '';
     armarFiltros();
@@ -323,14 +372,21 @@
     $('conteo').textContent = (hayFiltro0(q) ? 'Resultados: ' : 'Total: ') + lista.length + (hayFiltro0(q) ? ' de ' + equipos.length + ' computadores' : ' computadores');
     var hayFiltro = q || FILTROS.some(function (f) { return filtroVal[f[0]]; });
     $('total').textContent = '(' + lista.length + (hayFiltro ? ' de ' + equipos.length : '') + ')';
+    actualizarSeleccion();
     if (!lista.length) {
-      tb.appendChild(el('tr', {}, [el('td', { colSpan: CAMPOS.length + 1, cls: 'vacio', text: equipos.length ? 'Ningún computador coincide con la búsqueda.' : 'Aún no hay computadores registrados.' })]));
+      tb.appendChild(el('tr', {}, [el('td', { colSpan: CAMPOS.length + 2, cls: 'vacio', text: equipos.length ? 'Ningún computador coincide con la búsqueda.' : 'Aún no hay computadores registrados.' })]));
       return;
     }
     lista.forEach(function (eq) {
       var bEd = el('button', { cls: 'sec mini', type: 'button', text: 'Editar' });
       bEd.addEventListener('click', function () { editar(eq); });
-      var celdas = CAMPOS.map(function (c) { return el('td', { text: eq[c[0]] || '' }); });
+      var chk = el('input', { type: 'checkbox', checked: !!seleccion[eq.id] });
+      chk.setAttribute('aria-label', 'Seleccionar ' + (eq.placa || eq.hostname || ''));
+      chk.addEventListener('change', function () {
+        if (chk.checked) seleccion[eq.id] = 1; else delete seleccion[eq.id];
+        confirmando = false; actualizarSeleccion();
+      });
+      var celdas = [el('td', { cls: 'sel' }, [chk])].concat(CAMPOS.map(function (c) { return el('td', { text: eq[c[0]] || '' }); }));
       celdas.push(el('td', {}, [bEd]));
       tb.appendChild(el('tr', {}, celdas));
     });
