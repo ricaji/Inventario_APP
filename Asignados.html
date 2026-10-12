@@ -10,6 +10,14 @@
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;600;700&display=swap">
 <link rel="stylesheet" href="estilos.css">
 <style>
+  .field.rel{position:relative}
+  .sug{position:absolute;left:0;right:0;top:100%;z-index:30;max-height:260px;overflow:auto;list-style:none;margin:4px 0 0;padding:4px;background:var(--card);border:1px solid var(--line);border-radius:6px;box-shadow:0 8px 20px rgba(0,0,0,.18)}
+  .sug li{padding:8px 10px;border-radius:4px;cursor:pointer;font-size:14px;display:flex;flex-wrap:wrap;gap:2px 10px;align-items:baseline}
+  .sug li b{font-weight:700}
+  .sug li small{color:var(--muted);font-size:12px}
+  .sug li.act,.sug li:hover{background:var(--ground)}
+  .sug li.oc{cursor:default;color:var(--muted)}
+  .sug li.oc:hover{background:none}
   .barra{display:flex;flex-wrap:wrap;align-items:center;gap:6px 18px;max-width:1200px;margin:0 auto;padding-block:14px}
   .barra .marca{margin:0;font-size:18px;font-weight:700;letter-spacing:.01em;flex:1 1 auto}
   .barra .marca span{color:var(--muted);font-weight:600}
@@ -70,10 +78,10 @@
     <section class="card" id="res-equipos" hidden>
       <h2>Equipos asignados <span id="total" class="nota"></span></h2>
       <form class="busca" id="f-asignar" novalidate>
-        <div class="field">
+        <div class="field rel">
           <label for="placa-nueva">Asignar equipo (placa)</label>
-          <input id="placa-nueva" type="search" autocomplete="off" list="lista-libres" placeholder="Placa de un equipo libre…">
-          <datalist id="lista-libres"></datalist>
+          <input id="placa-nueva" type="search" autocomplete="off" role="combobox" aria-expanded="false" aria-controls="sug" placeholder="Escriba la placa…">
+          <ul class="sug" id="sug" role="listbox" hidden></ul>
         </div>
         <button class="go" type="submit" id="asignar-btn">Asignar</button>
       </form>
@@ -208,28 +216,54 @@
     });
     actual = { q: q, datos: origen };
     $('placa-nueva').value = '';
-    sugerir();
+    cerrarSug();
     $('res-equipos').hidden = false;
   }
 
-  // Sugerencias de placa: equipos libres que contienen lo escrito (solo en la placa de bd_Computadores)
-  function sugerir() {
-    var t = norm($('placa-nueva').value), lib = $('lista-libres'); lib.textContent = '';
-    var coincide = function (e) { return !t || norm(e.placa).indexOf(t) >= 0; };
-    libres().filter(coincide).sort(function (a, b) { return norm(a.placa) < norm(b.placa) ? -1 : 1; }).slice(0, 50).forEach(function (e) {
-      var d = [e.hostname, e.marca, e.modelo].map(limpio).filter(Boolean).join(' ');
-      lib.appendChild(el('option', { value: limpio(e.placa), label: d }));
-    });
-    var hay = lib.children.length;
-    if (t && !hay) {
-      var ocup = equipos.filter(function (e) { return limpio(e.placa) && coincide(e) && ocupado(e); }).slice(0, 5);
-      msgAsig(ocup.length ? 'Con ese número solo hay equipos ya asignados: ' + ocup.map(function (e) {
-        var d = asignaciones.filter(function (a) { return limpio(a.cc) && norm(a.placa) === norm(e.placa); })[0];
-        return limpio(e.placa) + ' (CC ' + limpio((d && d.cc) || e.cc) + ')';
-      }).join(', ') + '.' : 'No hay equipos libres con ese número de placa.', 'err');
-    } else if (!$('estado-asig').textContent || $('estado-asig').className.indexOf('err') >= 0) msgAsig('');
+  // Lista desplegable de placas de bd_Computadores que contienen lo escrito
+  var sugItems = [], sugPos = -1;
+  function cerrarSug() { $('sug').hidden = true; $('placa-nueva').setAttribute('aria-expanded', 'false'); sugPos = -1; }
+  function elegir(placa) { $('placa-nueva').value = placa; cerrarSug(); msgAsig(''); }
+  function resaltar() {
+    Array.prototype.forEach.call($('sug').children, function (li) { li.classList.remove('act'); });
+    if (sugPos >= 0 && sugItems[sugPos]) { var li = sugItems[sugPos].li; li.classList.add('act'); li.scrollIntoView({ block: 'nearest' }); }
   }
-  $('placa-nueva').addEventListener('input', sugerir);
+  function sugerir() {
+    var t = norm($('placa-nueva').value), ul = $('sug'); ul.textContent = ''; sugItems = []; sugPos = -1;
+    if (!actual) { cerrarSug(); return; }
+    var lista = equipos.filter(function (e) { return limpio(e.placa) && (!t || norm(e.placa).indexOf(t) >= 0); })
+      .sort(function (a, b) {
+        var oa = ocupado(a) ? 1 : 0, ob = ocupado(b) ? 1 : 0;
+        return oa !== ob ? oa - ob : (norm(a.placa) < norm(b.placa) ? -1 : 1);
+      });
+    lista.slice(0, 50).forEach(function (e) {
+      var oc = ocupado(e), d = asignaciones.filter(function (a) { return limpio(a.cc) && norm(a.placa) === norm(e.placa); })[0];
+      var det = [e.hostname, e.marca, e.modelo].map(limpio).filter(Boolean).join(' ');
+      var li = el('li', { cls: oc ? 'oc' : '' }, [el('b', { text: limpio(e.placa) }),
+        el('small', { text: oc ? 'Ya asignada a la CC ' + limpio((d && d.cc) || e.cc) : det })]);
+      li.setAttribute('role', 'option');
+      if (!oc) {
+        li.addEventListener('mousedown', function (ev) { ev.preventDefault(); elegir(limpio(e.placa)); });
+        sugItems.push({ li: li, placa: limpio(e.placa) });
+      }
+      ul.appendChild(li);
+    });
+    if (!lista.length) { var v = el('li', { cls: 'oc', text: 'Ninguna placa contiene ese número.' }); ul.appendChild(v); }
+    if (lista.length > 50) ul.appendChild(el('li', { cls: 'oc', text: 'Hay más resultados; escriba más números para acotar.' }));
+    ul.hidden = false; $('placa-nueva').setAttribute('aria-expanded', 'true');
+  }
+  $('placa-nueva').addEventListener('input', function () { msgAsig(''); sugerir(); });
+  $('placa-nueva').addEventListener('focus', sugerir);
+  $('placa-nueva').addEventListener('blur', function () { setTimeout(cerrarSug, 120); });
+  $('placa-nueva').addEventListener('keydown', function (e) {
+    var abierto = !$('sug').hidden;
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+      e.preventDefault(); if (!abierto) sugerir();
+      if (!sugItems.length) return;
+      sugPos = e.key === 'ArrowDown' ? (sugPos + 1) % sugItems.length : (sugPos <= 0 ? sugItems.length - 1 : sugPos - 1); resaltar();
+    } else if (e.key === 'Enter' && abierto && sugPos >= 0) { e.preventDefault(); elegir(sugItems[sugPos].placa); }
+    else if (e.key === 'Escape') cerrarSug();
+  });
 
   function botonQuitar(f) {
     var b = el('button', { cls: 'sec mini', type: 'button', text: 'Quitar' }), paso = 0, t;
