@@ -1,0 +1,485 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#ededed">
+<title>Base de datos de computadores - Inventario APP</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;600;700&display=swap">
+<link rel="stylesheet" href="estilos.css">
+<style>
+  .barra{display:flex;flex-wrap:wrap;align-items:center;gap:6px 18px;max-width:1200px;margin:0 auto;padding-block:14px}
+  .barra .marca{margin:0;font-size:18px;font-weight:700;letter-spacing:.01em;flex:1 1 auto}
+  .barra .marca span{color:var(--muted);font-weight:600}
+  .barra .quien{font-size:14px;color:var(--muted)}
+  main{max-width:1200px;margin:0 auto;padding-bottom:32px;display:grid;grid-template-columns:minmax(0,1fr);gap:16px}
+  main > *{min-width:0}
+  h2{margin:0 0 12px;font-size:17px}
+  fieldset{margin:0 0 14px;padding:12px 14px 14px;border:1px solid var(--line);border-radius:6px;min-width:0}
+  legend{padding:0 6px;font-size:12px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
+  .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:12px}
+  .grid .ancho{grid-column:1/-1}
+  textarea{width:100%;min-height:84px;padding:10px 12px;border:1px solid #b9b9b9;border-radius:6px;background:#fff;color:var(--ink);font:inherit;font-size:16px;resize:vertical}
+  :is(textarea):focus-visible{outline:3px solid var(--signal);outline-offset:2px}
+  .acciones{display:flex;flex-wrap:wrap;gap:10px;margin-top:6px}
+  .cabecera{display:flex;flex-wrap:wrap;gap:10px 16px;align-items:end;justify-content:space-between;margin-bottom:12px}
+  .cabecera h2{margin:0}
+  .filtros{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px;margin-bottom:12px}
+  .filtros .field{margin:0}
+  .exporta{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:8px 16px;margin-bottom:10px}
+  .exporta .botones{display:flex;flex-wrap:wrap;gap:8px}
+  .buscar{width:min(100%,340px)}
+  .tabla{overflow:auto;max-height:70vh;border:1px solid var(--line);border-radius:6px}
+  .tabla th{position:sticky;top:0;background:var(--card);z-index:1}
+  table{width:100%;min-width:960px;border-collapse:collapse;font-size:14px}
+  th{padding:8px;text-align:left;font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);border-bottom:2px solid var(--line);white-space:nowrap}
+  td{padding:8px;border-bottom:1px solid #e6e6e6;vertical-align:top}
+  .vacio{padding:18px 8px;color:var(--muted)}
+  .denegado{max-width:520px;margin:48px auto}
+  .denegado p{margin:0 0 14px}
+  .req{color:var(--danger)}
+  #archivo{width:min(100%,360px);height:auto;padding:8px 10px}
+  .errores{margin:0 0 12px;padding-left:20px;font-size:14px;color:var(--err-ink)}
+  .nota{margin:0 0 12px;font-size:13px;color:var(--muted)}
+</style>
+</head>
+<body>
+
+  <header class="barra" id="barra" hidden>
+    <h1 class="marca">Inventario APP <span>· Base de datos</span></h1>
+    <span class="quien" id="quien"></span>
+    <a class="link" href="index.html">Inicio</a>
+    <a class="link" href="usuarios.html">Usuarios</a>
+    <a class="link" href="Inv_Computadores.html">Inventario</a>
+    <button class="sec mini" type="button" id="salir">Salir</button>
+  </header>
+
+  <main id="contenido" hidden>
+    <section class="card">
+      <h2 id="form-titulo">Registrar computador</h2>
+      <p class="nota">Los campos con <span class="req">*</span> son obligatorios.</p>
+      <form id="f-equipo" novalidate>
+        <div id="campos"></div>
+        <div class="acciones">
+          <button class="go" type="submit" id="guardar">Guardar computador</button>
+          <button class="sec" type="button" id="cancelar" hidden>Cancelar edición</button>
+        </div>
+      </form>
+      <p class="status" id="estado" role="status" aria-live="polite"></p>
+    </section>
+
+    <section class="card">
+      <h2>Importar desde Excel</h2>
+      <p class="nota">Se importa todo el archivo, aunque tenga datos faltantes o repetidos; luego puede corregirlos con Editar. Suba un archivo .xlsx, .xls o .csv con los encabezados en la primera fila (PLACA, TIPO 1, TIPO 2, HOSTNAME, MARCA, MODELO, SERIAL, PROCESADOR, GENERACIÓN, RAM, TIPO, DD CANTIDAD 1, DD TIPO 1, DD CANTIDAD 2, DD TIPO 2, WINDOWS, CLAVE, OFFICE, ACTIVACIÓN, ANTIVIRUS, OBSERVACIONES).</p>
+      <div class="acciones">
+        <input id="archivo" type="file" accept=".xlsx,.xls,.csv" aria-label="Archivo de Excel">
+        <button class="sec" type="button" id="plantilla">Descargar plantilla</button>
+      </div>
+      <div id="resumen" hidden>
+        <p id="resumen-txt" class="nota"></p>
+        <ul id="errores-lista" class="errores"></ul>
+        <div class="acciones">
+          <button class="go" type="button" id="importar-btn">Importar</button>
+          <button class="sec" type="button" id="importar-cancelar">Cancelar</button>
+        </div>
+      </div>
+      <p class="status" id="estado-imp" role="status" aria-live="polite"></p>
+    </section>
+
+    <section class="card">
+      <div class="cabecera">
+        <h2>Computadores registrados <span id="total" class="nota"></span></h2>
+        <div class="field buscar">
+          <label for="buscar">Buscar</label>
+          <input id="buscar" type="search" autocomplete="off" placeholder="Placa, hostname, serial, marca…">
+        </div>
+      </div>
+      <div class="filtros" id="filtros"></div>
+      <div class="exporta">
+        <strong id="conteo" role="status" aria-live="polite"></strong>
+        <span class="botones">
+          <button class="sec mini" type="button" id="exp-xlsx">Exportar Excel</button>
+          <button class="sec mini" type="button" id="exp-csv">Exportar CSV</button>
+          <button class="sec mini" type="button" id="exp-txt">Exportar texto plano</button>
+        </span>
+      </div>
+      <div class="tabla">
+        <table>
+          <thead><tr><th>Placa</th><th>Tipo 1</th><th>Tipo 2</th><th>Hostname</th><th>Marca</th><th>Modelo</th><th>Serial</th><th>Procesador</th><th>Generación</th><th>RAM</th><th>Windows</th><th>Office</th><th>Antivirus</th><th>Acciones</th></tr></thead>
+          <tbody id="tbody"></tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+
+  <section class="card denegado" id="denegado" hidden>
+    <h1 class="eyebrow">Acceso restringido</h1>
+    <p id="denegado-texto">Esta página es solo para los roles Administrador y Soporte.</p>
+    <a class="link" href="index.html">Ir a iniciar sesión</a>
+  </section>
+
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="app.js"></script>
+<script>
+(function () {
+  var $ = function (id) { return document.getElementById(id); };
+  var COL = 'bd_computadores';
+  var yo = null, editando = null, equipos = [];
+
+  var TIPOS1 = ['', 'Computador', 'Celular', 'Tablet'];
+  var TIPOS2 = ['', 'Portátil', 'Escritorio', 'Todo en uno', 'Celular', 'Tablet'];
+  // Grupos de preguntas del formulario: [clave, etiqueta, obligatorio, tipo, opciones]
+  var GRUPOS = [
+    ['Equipo', [
+      ['placa', 'Placa', true], ['tipo1', 'Tipo 1', false, 'select', TIPOS1], ['tipo2', 'Tipo 2', false, 'select', TIPOS2],
+      ['hostname', 'Hostname', true], ['marca', 'Marca'], ['modelo', 'Modelo'], ['serial', 'Serial']
+    ]],
+    ['Hardware', [
+      ['procesador', 'Procesador'], ['generacion', 'Generación'], ['ram', 'RAM'], ['ramTipo', 'Tipo (RAM)'],
+      ['dd1Cantidad', 'DD cantidad 1'], ['dd1Tipo', 'DD tipo 1'], ['dd2Cantidad', 'DD cantidad 2'], ['dd2Tipo', 'DD tipo 2']
+    ]],
+    ['Software', [
+      ['windows', 'Windows'], ['clave', 'Clave'], ['office', 'Office'], ['activacion', 'Activación'], ['antivirus', 'Antivirus']
+    ]],
+    ['Observaciones', [['observaciones', 'Observaciones', false, 'area']]]
+  ];
+  var CAMPOS = [];
+  GRUPOS.forEach(function (g) { g[1].forEach(function (c) { CAMPOS.push(c); }); });
+
+  function msg(t, tipo) { $('estado').textContent = t || ''; $('estado').className = 'status' + (tipo ? ' ' + tipo : ''); }
+  function el(tag, props, hijos) {
+    var e = document.createElement(tag);
+    Object.keys(props || {}).forEach(function (k) { if (k === 'text') e.textContent = props[k]; else if (k === 'cls') e.className = props[k]; else e[k] = props[k]; });
+    (hijos || []).forEach(function (h) { e.appendChild(h); });
+    return e;
+  }
+  function limpio(v) { return String(v == null ? '' : v).trim(); }
+  function norm(v) { return limpio(v).toLowerCase(); }
+
+  /* ---------- formulario ---------- */
+  function construirFormulario() {
+    var cont = $('campos');
+    GRUPOS.forEach(function (g) {
+      var grid = el('div', { cls: 'grid' });
+      g[1].forEach(function (c) {
+        var area = c[3] === 'area';
+        var id = 'c-' + c[0];
+        var lbl = el('label', { htmlFor: id });
+        lbl.appendChild(document.createTextNode(c[1] + ' '));
+        if (c[2]) lbl.appendChild(el('span', { cls: 'req', text: '*' }));
+        var inp;
+        if (area) inp = el('textarea', { id: id, maxLength: 1000 });
+        else if (c[3] === 'select') {
+          inp = el('select', { id: id });
+          c[4].forEach(function (o) { inp.appendChild(el('option', { text: o || '— Seleccione —', value: o })); });
+        } else { inp = el('input', { id: id, maxLength: 120, autocomplete: 'off' }); inp.setAttribute('autocapitalize', 'none'); }
+        grid.appendChild(el('div', { cls: 'field' + (area ? ' ancho' : '') }, [lbl, inp]));
+      });
+      cont.appendChild(el('fieldset', {}, [el('legend', { text: g[0] }), grid]));
+    });
+  }
+  function valores() {
+    var d = {};
+    CAMPOS.forEach(function (c) { d[c[0]] = limpio($('c-' + c[0]).value); });
+    return d;
+  }
+  function ponerValores(d) {
+    CAMPOS.forEach(function (c) {
+      var campo = $('c-' + c[0]), v = d[c[0]] || (c[3] === 'select' ? c[4][0] : '');
+      // Valor guardado que no está en la lista (p. ej. datos importados): se conserva como opción extra
+      if (c[3] === 'select' && v && c[4].indexOf(v) < 0 && !Array.prototype.some.call(campo.options, function (o) { return o.value === v; })) campo.appendChild(el('option', { text: v, value: v }));
+      campo.value = v;
+    });
+  }
+  function salirEdicion() {
+    editando = null;
+    ponerValores({});
+    $('form-titulo').textContent = 'Registrar computador';
+    $('guardar').textContent = 'Guardar computador';
+    $('cancelar').hidden = true;
+  }
+  function editar(eq) {
+    editando = eq.id;
+    ponerValores(eq);
+    $('form-titulo').textContent = 'Editar computador: ' + (eq.hostname || eq.placa);
+    $('guardar').textContent = 'Guardar cambios';
+    $('cancelar').hidden = false;
+    msg('');
+    $('c-placa').focus();
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+  $('cancelar').addEventListener('click', function () { salirEdicion(); msg(''); });
+
+  function validar(d) {
+    for (var i = 0; i < CAMPOS.length; i++) {
+      if (CAMPOS[i][2] && !d[CAMPOS[i][0]]) return 'Complete el campo ' + CAMPOS[i][1] + '.';
+    }
+    var dup = function (campo, etiqueta) {
+      if (!d[campo]) return null;
+      var otro = equipos.filter(function (e) { return e.id !== editando && norm(e[campo]) === norm(d[campo]); })[0];
+      return otro ? 'Ya existe un computador con ' + etiqueta + ' ' + d[campo] + '.' : null;
+    };
+    return dup('hostname', 'el hostname') || dup('serial', 'el serial') || dup('placa', 'la placa');
+  }
+
+  $('f-equipo').addEventListener('submit', async function (e) {
+    e.preventDefault();
+    var d = valores(), error = validar(d);
+    if (error) { msg(error, 'err'); return; }
+    $('guardar').disabled = true;
+    try {
+      var col = firebase.firestore().collection(COL);
+      d.actualizadoPor = yo.usuario;
+      d.actualizado = firebase.firestore.FieldValue.serverTimestamp();
+      if (editando) { await col.doc(editando).update(d); msg('Computador actualizado.', 'ok'); }
+      else { d.creadoPor = yo.usuario; await col.add(d); msg('Computador registrado.', 'ok'); }
+      salirEdicion();
+      await cargar();
+    } catch (err) {
+      msg(err && err.code === 'permission-denied' ? 'No tiene permiso para realizar esta acción.' : ((err && err.message) || 'No se pudo guardar.'), 'err');
+    }
+    $('guardar').disabled = false;
+  });
+
+  /* ---------- tabla ---------- */
+  async function cargar() {
+    try {
+      var snap = await firebase.firestore().collection(COL).get();
+      equipos = [];
+      snap.forEach(function (d) { var x = d.data(); x.id = d.id; equipos.push(x); });
+      equipos.sort(function (a, b) { return norm(a.hostname) < norm(b.hostname) ? -1 : 1; });
+      pintar();
+    } catch (err) {
+      msg(err && err.code === 'permission-denied' ? 'No tiene permiso para ver los computadores.' : ((err && err.message) || 'No se pudo cargar la lista.'), 'err');
+    }
+  }
+  var FILTROS = [['placa', 'Placa'], ['hostname', 'Hostname'], ['serial', 'Serial'], ['marca', 'Marca']];
+  var filtroVal = {};
+  var visibles = [];
+  function hayFiltro0(q) { return !!q || FILTROS.some(function (f) { return norm(filtroVal[f[0]]); }); }
+  var filtrosListos = false;
+  function armarFiltros() {
+    var cont = $('filtros');
+    if (!filtrosListos) {
+      filtrosListos = true;
+      FILTROS.forEach(function (f) {
+        var k = f[0];
+        var inp = el('input', { id: 'f-' + k, type: 'search', autocomplete: 'off', placeholder: 'Escriba ' + f[1] + '…' });
+        inp.setAttribute('list', 'dl-' + k);
+        inp.addEventListener('input', function () { filtroVal[k] = inp.value; pintar(); });
+        cont.appendChild(el('div', { cls: 'field' }, [el('label', { htmlFor: 'f-' + k, text: f[1] }), inp, el('datalist', { id: 'dl-' + k })]));
+      });
+    }
+    // Sugerencias: valores existentes que coinciden con lo escrito en ese filtro
+    FILTROS.forEach(function (f) {
+      var k = f[0], q = norm(filtroVal[k]), vistos = {};
+      equipos.forEach(function (e) { var v = limpio(e[k]); if (v && (!q || norm(v).indexOf(q) >= 0)) vistos[v] = 1; });
+      var dl = $('dl-' + k); dl.textContent = '';
+      Object.keys(vistos).sort(function (a, b) { return a.toLowerCase() < b.toLowerCase() ? -1 : 1; }).slice(0, 50)
+        .forEach(function (v) { dl.appendChild(el('option', { value: v })); });
+    });
+  }
+  function pintar() {
+    var q = norm($('buscar').value), tb = $('tbody'); tb.textContent = '';
+    armarFiltros();
+    var lista = equipos.filter(function (eq) {
+      for (var i = 0; i < FILTROS.length; i++) {
+        var v = filtroVal[FILTROS[i][0]];
+        if (norm(v) && norm(eq[FILTROS[i][0]]).indexOf(norm(v)) < 0) return false;
+      }
+      if (!q) return true;
+      return CAMPOS.some(function (c) { return norm(eq[c[0]]).indexOf(q) >= 0; });
+    });
+    visibles = lista;
+    $('conteo').textContent = (hayFiltro0(q) ? 'Resultados: ' : 'Total: ') + lista.length + (hayFiltro0(q) ? ' de ' + equipos.length + ' computadores' : ' computadores');
+    var hayFiltro = q || FILTROS.some(function (f) { return filtroVal[f[0]]; });
+    $('total').textContent = '(' + lista.length + (hayFiltro ? ' de ' + equipos.length : '') + ')';
+    if (!lista.length) {
+      tb.appendChild(el('tr', {}, [el('td', { colSpan: 14, cls: 'vacio', text: equipos.length ? 'Ningún computador coincide con la búsqueda.' : 'Aún no hay computadores registrados.' })]));
+      return;
+    }
+    lista.forEach(function (eq) {
+      var bEd = el('button', { cls: 'sec mini', type: 'button', text: 'Editar' });
+      bEd.addEventListener('click', function () { editar(eq); });
+      tb.appendChild(el('tr', {}, [
+        el('td', { text: eq.placa || '' }),
+        el('td', { text: eq.tipo1 || '' }),
+        el('td', { text: eq.tipo2 || '' }),
+        el('td', { text: eq.hostname || '' }),
+        el('td', { text: eq.marca || '' }),
+        el('td', { text: eq.modelo || '' }),
+        el('td', { text: eq.serial || '' }),
+        el('td', { text: eq.procesador || '' }),
+        el('td', { text: eq.generacion || '' }),
+        el('td', { text: eq.ram || '' }),
+        el('td', { text: eq.windows || '' }),
+        el('td', { text: eq.office || '' }),
+        el('td', { text: eq.antivirus || '' }),
+        el('td', {}, [bEd])
+      ]));
+    });
+  }
+  $('buscar').addEventListener('input', pintar);
+
+  /* ---------- exportar lo que se está viendo ---------- */
+  function filasExport() {
+    var enc = CAMPOS.map(function (c) { return c[1]; });
+    return [enc].concat(visibles.map(function (e) { return CAMPOS.map(function (c) { return limpio(e[c[0]]); }); }));
+  }
+  function descargar(contenido, nombre, tipo) {
+    var url = URL.createObjectURL(new Blob([contenido], { type: tipo }));
+    var a = document.createElement('a'); a.href = url; a.download = nombre;
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
+  }
+  function nombreArchivo(ext) { return 'bd_computadores_' + new Date().toISOString().slice(0, 10) + '.' + ext; }
+  function sinDatos() { if (!visibles.length) { msg('No hay resultados para exportar.', 'err'); return true; } msg(''); return false; }
+  $('exp-csv').addEventListener('click', function () {
+    if (sinDatos()) return;
+    var csv = filasExport().map(function (f) { return f.map(function (v) { return '"' + v.replace(/"/g, '""') + '"'; }).join(';'); }).join('\r\n');
+    descargar('\ufeff' + csv, nombreArchivo('csv'), 'text/csv;charset=utf-8');
+  });
+  $('exp-txt').addEventListener('click', function () {
+    if (sinDatos()) return;
+    var txt = filasExport().map(function (f) { return f.map(function (v) { return v.replace(/[\t\r\n]+/g, ' '); }).join('\t'); }).join('\r\n');
+    descargar(txt, nombreArchivo('txt'), 'text/plain;charset=utf-8');
+  });
+  $('exp-xlsx').addEventListener('click', function () {
+    if (sinDatos()) return;
+    if (!window.XLSX) { msg('No se pudo cargar el generador de Excel. Use CSV o revise su conexión.', 'err'); return; }
+    var wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(filasExport()), 'Computadores');
+    XLSX.writeFile(wb, nombreArchivo('xlsx'));
+  });
+
+  /* ---------- importar desde Excel ---------- */
+  var ENCAB = {};   // encabezado normalizado -> clave del campo
+  function normEnc(v) { return String(v == null ? '' : v).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase().replace(/[^A-Z0-9]+/g, ' ').trim(); }
+  CAMPOS.forEach(function (c) { ENCAB[normEnc(c[1])] = c[0]; });
+  ENCAB['TIPO'] = 'ramTipo';           // en el Excel, el TIPO que sigue a RAM
+  ENCAB['DD CANTIDAD 1'] = 'dd1Cantidad'; ENCAB['DD TIPO 1'] = 'dd1Tipo';
+  ENCAB['DD CANTIDAD 2'] = 'dd2Cantidad'; ENCAB['DD TIPO 2'] = 'dd2Tipo';
+  var pendientes = [];
+
+  // filas: matriz (primera fila = encabezados). Devuelve { validos, errores, ignoradas }.
+  function procesarFilas(filas) {
+    var res = { validos: [], errores: [], ignoradas: [], fatal: null };
+    var iEnc = -1;
+    for (var i = 0; i < filas.length && iEnc < 0; i++) {
+      if (filas[i].some(function (c) { return limpio(c) !== ''; })) iEnc = i;
+    }
+    if (iEnc < 0) { res.fatal = 'El archivo está vacío.'; return res; }
+    var mapa = {};   // índice de columna -> campo
+    filas[iEnc].forEach(function (h, j) {
+      var campo = ENCAB[normEnc(h)];
+      if (campo && !Object.keys(mapa).some(function (k) { return mapa[k] === campo; })) mapa[j] = campo;
+      else if (limpio(h) !== '') res.ignoradas.push(limpio(h));
+    });
+    if (!Object.keys(mapa).length) { res.fatal = 'No se reconoció ninguna columna. Revise que los encabezados estén en la primera fila.'; return res; }
+    // Se importa todo; los avisos (datos faltantes o repetidos) se corrigen luego a mano con Editar.
+    var vistos = { hostname: {}, serial: {}, placa: {} };
+    equipos.forEach(function (e) { ['hostname', 'serial', 'placa'].forEach(function (k) { if (norm(e[k])) vistos[k][norm(e[k])] = 1; }); });
+    for (var f = iEnc + 1; f < filas.length; f++) {
+      var fila = filas[f];
+      if (!fila.some(function (c) { return limpio(c) !== ''; })) continue;
+      var d = {};
+      CAMPOS.forEach(function (c) { d[c[0]] = ''; });
+      Object.keys(mapa).forEach(function (j) { d[mapa[j]] = limpio(fila[j]); });
+      var avisos = [];
+      var falta = CAMPOS.filter(function (c) { return c[2] && !d[c[0]]; }).map(function (c) { return c[1]; });
+      if (falta.length) avisos.push('falta ' + falta.join(', '));
+      ['hostname', 'serial', 'placa'].forEach(function (campo) {
+        if (!d[campo]) return;
+        var n = norm(d[campo]);
+        if (vistos[campo][n]) avisos.push(campo + ' ' + d[campo] + ' repetido'); else vistos[campo][n] = 1;
+      });
+      if (avisos.length) res.errores.push('Fila ' + (f + 1) + ': ' + avisos.join('; ') + '.');
+      res.validos.push(d);
+    }
+    return res;
+  }
+  function msgImp(t, tipo) { $('estado-imp').textContent = t || ''; $('estado-imp').className = 'status' + (tipo ? ' ' + tipo : ''); }
+  function limpiarImportacion() {
+    pendientes = []; $('resumen').hidden = true; $('archivo').value = ''; $('errores-lista').textContent = '';
+  }
+  $('archivo').addEventListener('change', async function () {
+    var file = this.files && this.files[0];
+    pendientes = []; $('resumen').hidden = true; msgImp('');
+    if (!file) return;
+    if (!window.XLSX) { msgImp('No se pudo cargar el lector de Excel. Revise su conexión a internet.', 'err'); return; }
+    try {
+      var wb = XLSX.read(await file.arrayBuffer(), { type: 'array' });
+      var ws = wb.Sheets[wb.SheetNames[0]];
+      var filas = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '', raw: false });
+      var res = procesarFilas(filas);
+      if (res.fatal) { msgImp(res.fatal, 'err'); return; }
+      pendientes = res.validos;
+      var txt = res.validos.length + ' computador(es) listos para importar';
+      if (res.errores.length) txt += ' (se importan todas). ' + res.errores.length + ' fila(s) tienen datos por revisar y podrá corregirlas luego con Editar';
+      txt += '.';
+      if (res.ignoradas.length) txt += ' Columnas no reconocidas (se ignoran): ' + res.ignoradas.join(', ') + '.';
+      $('resumen-txt').textContent = txt;
+      var ul = $('errores-lista'); ul.textContent = '';
+      res.errores.slice(0, 15).forEach(function (m) { ul.appendChild(el('li', { text: m })); });
+      if (res.errores.length > 15) ul.appendChild(el('li', { text: '… y ' + (res.errores.length - 15) + ' más.' }));
+      $('importar-btn').disabled = !res.validos.length;
+      $('importar-btn').textContent = 'Importar ' + res.validos.length;
+      $('resumen').hidden = false;
+    } catch (err) { msgImp('No se pudo leer el archivo: ' + ((err && err.message) || 'formato no válido') + '.', 'err'); }
+  });
+  $('importar-cancelar').addEventListener('click', function () { limpiarImportacion(); msgImp(''); });
+  $('importar-btn').addEventListener('click', async function () {
+    if (!pendientes.length) return;
+    $('importar-btn').disabled = true; msgImp('Importando…');
+    try {
+      var db = firebase.firestore(), col = db.collection(COL), total = pendientes.length;
+      for (var i = 0; i < total; i += 400) {
+        var batch = db.batch();
+        pendientes.slice(i, i + 400).forEach(function (d) {
+          var x = Object.assign({}, d);
+          x.creadoPor = yo.usuario; x.actualizadoPor = yo.usuario; x.importado = true;
+          x.actualizado = firebase.firestore.FieldValue.serverTimestamp();
+          batch.set(col.doc(), x);
+        });
+        await batch.commit();
+      }
+      limpiarImportacion();
+      msgImp('Se importaron ' + total + ' computador(es).', 'ok');
+      await cargar();
+    } catch (err) {
+      $('importar-btn').disabled = false;
+      msgImp(err && err.code === 'permission-denied' ? 'No tiene permiso para realizar esta acción.' : ((err && err.message) || 'No se pudo importar.'), 'err');
+    }
+  });
+  $('plantilla').addEventListener('click', function () {
+    if (!window.XLSX) { msgImp('No se pudo cargar el lector de Excel.', 'err'); return; }
+    var enc = ['PLACA', 'TIPO 1', 'TIPO 2', 'HOSTNAME', 'MARCA', 'MODELO', 'SERIAL', 'PROCESADOR', 'GENERACIÓN', 'RAM', 'TIPO', 'DD CANTIDAD 1', 'DD TIPO 1', 'DD CANTIDAD 2', 'DD TIPO 2', 'WINDOWS', 'CLAVE', 'OFFICE', 'ACTIVACIÓN', 'ANTIVIRUS', 'OBSERVACIONES'];
+    var wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([enc]), 'Computadores');
+    XLSX.writeFile(wb, 'plantilla_bd_computadores.xlsx');
+  });
+
+  $('salir').addEventListener('click', function () { App.logout().then(function () { location.href = 'index.html'; }); });
+
+  /* ---------- arranque ---------- */
+  App.init().then(function () {
+    yo = App.current();
+    if (!yo) {
+      $('denegado-texto').textContent = 'Inicie sesión para entrar a esta página.';
+      $('denegado').hidden = false; return;
+    }
+    if (yo.rol !== 'Administrador' && yo.rol !== 'Soporte') { $('denegado').hidden = false; return; }
+    construirFormulario();
+    $('quien').textContent = yo.nombre + ' (' + yo.rol + ')';
+    $('barra').hidden = false; $('contenido').hidden = false;
+    cargar();
+  });
+})();
+</script>
+</body>
+</html>
