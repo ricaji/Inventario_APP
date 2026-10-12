@@ -246,7 +246,7 @@
       msg(err && err.code === 'permission-denied' ? 'No tiene permiso para ver los computadores.' : ((err && err.message) || 'No se pudo cargar la lista.'), 'err');
     }
   }
-  var FILTROS = [['estado', 'Estado'], ['sede', 'Sede'], ['dependencia', 'Dependencia'], ['marca', 'Marca'], ['modelo', 'Modelo']];
+  var FILTROS = [['cc', 'CC'], ['nombres', 'Nombres'], ['apellidos', 'Apellidos']];
   var filtroVal = {};
   function armarFiltros() {
     var cont = $('filtros'); cont.textContent = '';
