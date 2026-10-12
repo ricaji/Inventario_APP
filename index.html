@@ -179,6 +179,7 @@
     ocupado(this, false);
     if (!r.ok) { msg(r.error, 'err'); return; }
     $('clave').value = '';
+    if (r.user.rol === 'Contratista' || r.user.rol === 'Vinculado') { location.href = 'Asignados.html'; return; }
     bienvenida(r.user);
   });
   $('salir').addEventListener('click', function () { App.logout().then(function () { ir('login'); }); });
