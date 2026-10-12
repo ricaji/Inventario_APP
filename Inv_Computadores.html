@@ -28,6 +28,8 @@
   .cabecera h2{margin:0}
   .filtros{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px;margin-bottom:12px}
   .filtros .field{margin:0}
+  .exporta{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:8px 16px;margin-bottom:10px}
+  .exporta .botones{display:flex;flex-wrap:wrap;gap:8px}
   .buscar{width:min(100%,340px)}
   .tabla{overflow:auto;max-height:70vh;border:1px solid var(--line);border-radius:6px}
   .tabla th{position:sticky;top:0;background:var(--card);z-index:1}
@@ -94,6 +96,14 @@
         </div>
       </div>
       <div class="filtros" id="filtros"></div>
+      <div class="exporta">
+        <strong id="conteo" role="status" aria-live="polite"></strong>
+        <span class="botones">
+          <button class="sec mini" type="button" id="exp-xlsx">Exportar Excel</button>
+          <button class="sec mini" type="button" id="exp-csv">Exportar CSV</button>
+          <button class="sec mini" type="button" id="exp-txt">Exportar texto plano</button>
+        </span>
+      </div>
       <div class="tabla">
         <table>
           <thead><tr><th>CC</th><th>Nombres</th><th>Apellidos</th><th>Sede</th><th>Dependencia</th><th>Hostname</th><th>Marca</th><th>Modelo</th><th>Placa</th><th>Serial</th><th>Estado</th><th>Acciones</th></tr></thead>
@@ -249,6 +259,8 @@
   }
   var FILTROS = [['cc', 'CC'], ['nombres', 'Nombres'], ['apellidos', 'Apellidos']];
   var filtroVal = {};
+  var visibles = [];
+  function hayFiltro0(q) { return !!q || FILTROS.some(function (f) { return norm(filtroVal[f[0]]); }); }
   var filtrosListos = false;
   function armarFiltros() {
     var cont = $('filtros');
@@ -282,6 +294,8 @@
       if (!q) return true;
       return CAMPOS.some(function (c) { return norm(eq[c[0]]).indexOf(q) >= 0; });
     });
+    visibles = lista;
+    $('conteo').textContent = (hayFiltro0(q) ? 'Resultados: ' : 'Total: ') + lista.length + (hayFiltro0(q) ? ' de ' + equipos.length + ' computadores' : ' computadores');
     var hayFiltro = q || FILTROS.some(function (f) { return filtroVal[f[0]]; });
     $('total').textContent = '(' + lista.length + (hayFiltro ? ' de ' + equipos.length : '') + ')';
     if (!lista.length) {
@@ -308,6 +322,37 @@
     });
   }
   $('buscar').addEventListener('input', pintar);
+
+  /* ---------- exportar lo que se está viendo ---------- */
+  function filasExport() {
+    var enc = CAMPOS.map(function (c) { return c[1]; });
+    return [enc].concat(visibles.map(function (e) { return CAMPOS.map(function (c) { return limpio(e[c[0]]); }); }));
+  }
+  function descargar(contenido, nombre, tipo) {
+    var url = URL.createObjectURL(new Blob([contenido], { type: tipo }));
+    var a = document.createElement('a'); a.href = url; a.download = nombre;
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
+  }
+  function nombreArchivo(ext) { return 'computadores_' + new Date().toISOString().slice(0, 10) + '.' + ext; }
+  function sinDatos() { if (!visibles.length) { msg('No hay resultados para exportar.', 'err'); return true; } msg(''); return false; }
+  $('exp-csv').addEventListener('click', function () {
+    if (sinDatos()) return;
+    var csv = filasExport().map(function (f) { return f.map(function (v) { return '"' + v.replace(/"/g, '""') + '"'; }).join(';'); }).join('\r\n');
+    descargar('\ufeff' + csv, nombreArchivo('csv'), 'text/csv;charset=utf-8');
+  });
+  $('exp-txt').addEventListener('click', function () {
+    if (sinDatos()) return;
+    var txt = filasExport().map(function (f) { return f.map(function (v) { return v.replace(/[\t\r\n]+/g, ' '); }).join('\t'); }).join('\r\n');
+    descargar(txt, nombreArchivo('txt'), 'text/plain;charset=utf-8');
+  });
+  $('exp-xlsx').addEventListener('click', function () {
+    if (sinDatos()) return;
+    if (!window.XLSX) { msg('No se pudo cargar el generador de Excel. Use CSV o revise su conexión.', 'err'); return; }
+    var wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(filasExport()), 'Computadores');
+    XLSX.writeFile(wb, nombreArchivo('xlsx'));
+  });
 
   /* ---------- importar desde Excel ---------- */
   var ENCAB = {};   // encabezado normalizado -> clave del campo
