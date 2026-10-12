@@ -391,7 +391,7 @@
       lista = lista.filter(function (e) { return dd[e.id]; }).sort(function (a, b) { return dd[a.id] < dd[b.id] ? -1 : dd[a.id] > dd[b.id] ? 1 : 0; });
     }
     visibles = lista;
-    $('conteo').textContent = (hayFiltro0(q) ? 'Resultados: ' : 'Total: ') + lista.length + (hayFiltro0(q) ? ' de ' + equipos.length + ' personas' : ' personas');
+    $('conteo').textContent = String(lista.length) + (hayFiltro0(q) ? ' de ' + equipos.length : '');
     var hayFiltro = q || FILTROS.some(function (f) { return filtroVal[f[0]]; });
     $('total').textContent = '(' + lista.length + (hayFiltro ? ' de ' + equipos.length : '') + ')';
     actualizarSeleccion();
