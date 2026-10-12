@@ -139,7 +139,7 @@
       ['sede', 'Sede'], ['dependencia', 'Dependencia'],
       ['tipoContrato', 'Tipo contrato'], ['numeroContrato', 'Número contrato']
     ]],
-    ['Clasificación', [['tipo1', 'Tipo 1'], ['tipo2', 'Tipo 2']]],
+    ['Clasificación', [['tipo1', 'Tipo 1', false, 'select', ['', 'Computador', 'Celular', 'Tablet']], ['tipo2', 'Tipo 2']]],
     ['Equipo', [
       ['hostname', 'Hostname', true], ['marca', 'Marca'], ['modelo', 'Modelo'], ['placa', 'Placa'], ['serial', 'Serial']
     ]],
@@ -180,7 +180,7 @@
         if (area) inp = el('textarea', { id: id, maxLength: 1000 });
         else if (c[3] === 'select') {
           inp = el('select', { id: id });
-          c[4].forEach(function (o) { inp.appendChild(el('option', { text: o, value: o })); });
+          c[4].forEach(function (o) { inp.appendChild(el('option', { text: o || '— Seleccione —', value: o })); });
         } else { inp = el('input', { id: id, maxLength: 120, autocomplete: 'off' }); inp.setAttribute('autocapitalize', 'none'); }
         grid.appendChild(el('div', { cls: 'field' + (area ? ' ancho' : '') }, [lbl, inp]));
       });
@@ -193,7 +193,12 @@
     return d;
   }
   function ponerValores(d) {
-    CAMPOS.forEach(function (c) { $('c-' + c[0]).value = d[c[0]] || (c[3] === 'select' ? c[4][0] : ''); });
+    CAMPOS.forEach(function (c) {
+      var campo = $('c-' + c[0]), v = d[c[0]] || (c[3] === 'select' ? c[4][0] : '');
+      // Valor guardado que no está en la lista (p. ej. datos importados): se conserva como opción extra
+      if (c[3] === 'select' && v && c[4].indexOf(v) < 0 && !Array.prototype.some.call(campo.options, function (o) { return o.value === v; })) campo.appendChild(el('option', { text: v, value: v }));
+      campo.value = v;
+    });
   }
   function salirEdicion() {
     editando = null;
