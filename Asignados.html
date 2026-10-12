@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#ededed">
+<title>Asignados - Inventario APP</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;600;700&display=swap">
+<link rel="stylesheet" href="estilos.css">
+<style>
+  .barra{display:flex;flex-wrap:wrap;align-items:center;gap:6px 18px;max-width:1200px;margin:0 auto;padding-block:14px}
+  .barra .marca{margin:0;font-size:18px;font-weight:700;letter-spacing:.01em;flex:1 1 auto}
+  .barra .marca span{color:var(--muted);font-weight:600}
+  .barra .quien{font-size:14px;color:var(--muted)}
+  main{max-width:1200px;margin:0 auto;padding-bottom:32px;display:grid;grid-template-columns:minmax(0,1fr);gap:16px}
+  main > *{min-width:0}
+  h2{margin:0 0 12px;font-size:17px}
+  .nota{margin:0 0 12px;font-size:13px;color:var(--muted)}
+  .busca{display:flex;flex-wrap:wrap;align-items:end;gap:10px 12px}
+  .busca .field{flex:1 1 260px;max-width:420px;margin:0}
+  .datos{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px 18px;margin:0}
+  .datos div{min-width:0}
+  .datos dt{font-size:12px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin:0 0 2px}
+  .datos dd{margin:0;font-size:15px;overflow-wrap:anywhere}
+  .tabla{overflow:auto;max-height:70vh;border:1px solid var(--line);border-radius:6px}
+  table{width:100%;min-width:1000px;border-collapse:collapse;font-size:14px}
+  th{padding:8px;text-align:left;font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);border-bottom:2px solid var(--line);white-space:nowrap;position:sticky;top:0;background:var(--card);z-index:1}
+  td{padding:8px;border-bottom:1px solid #e6e6e6;vertical-align:top}
+  .vacio{padding:18px 8px;color:var(--muted)}
+  .denegado{max-width:520px;margin:48px auto}
+  .denegado p{margin:0 0 14px}
+</style>
+</head>
+<body>
+
+  <header class="barra" id="barra" hidden>
+    <h1 class="marca">Inventario APP <span>· Asignados</span></h1>
+    <span class="quien" id="quien"></span>
+    <a class="link" href="index.html">Inicio</a>
+    <a class="link" href="bd_personas.html">Personas</a>
+    <a class="link" href="bd_Computadores.html">Equipos</a>
+    <a class="link" href="Inv_Computadores.html">Inventario</a>
+    <button class="sec mini" type="button" id="salir">Salir</button>
+  </header>
+
+  <main id="contenido" hidden>
+    <section class="card">
+      <h2>Buscar por CC</h2>
+      <p class="nota">Escriba o elija una CC para ver los datos de la persona y los equipos que tiene asignados.</p>
+      <form class="busca" id="f-buscar" novalidate>
+        <div class="field">
+          <label for="cc">CC</label>
+          <input id="cc" type="search" autocomplete="off" list="lista-cc" placeholder="Número de CC…">
+          <datalist id="lista-cc"></datalist>
+        </div>
+        <button class="go" type="submit" id="buscar">Buscar</button>
+      </form>
+      <p class="status" id="estado" role="status" aria-live="polite"></p>
+    </section>
+
+    <section class="card" id="res-persona" hidden>
+      <h2>Datos del empleado</h2>
+      <p class="nota" id="aviso-persona" hidden></p>
+      <dl class="datos" id="datos"></dl>
+    </section>
+
+    <section class="card" id="res-equipos" hidden>
+      <h2>Equipos asignados <span id="total" class="nota"></span></h2>
+      <div class="tabla">
+        <table>
+          <thead><tr><th>Placa</th><th>Tipo 1</th><th>Tipo 2</th><th>Hostname</th><th>Marca</th><th>Modelo</th><th>Serial</th><th>Procesador</th><th>RAM</th><th>Windows</th><th>Office</th><th>Antivirus</th><th>Estado</th></tr></thead>
+          <tbody id="tbody"></tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+
+  <section class="card denegado" id="denegado" hidden>
+    <h1 class="eyebrow">Acceso restringido</h1>
+    <p id="denegado-texto">Esta página es solo para los roles Administrador y Soporte.</p>
+    <a class="link" href="index.html">Ir a iniciar sesión</a>
+  </section>
+
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<script src="app.js"></script>
+<script>
+(function () {
+  var $ = function (id) { return document.getElementById(id); };
+  var yo = null, personas = [], asignaciones = [], equipos = [];
+
+  var DATOS = [['cc', 'CC'], ['nombres', 'Nombres'], ['apellidos', 'Apellidos'], ['sede', 'Sede'], ['dependencia', 'Dependencia'],
+    ['tipoContrato', 'Tipo contrato'], ['numeroContrato', 'Número contrato']];
+  var COLS = ['placa', 'tipo1', 'tipo2', 'hostname', 'marca', 'modelo', 'serial', 'procesador', 'ram', 'windows', 'office', 'antivirus'];
+
+  function limpio(v) { return String(v == null ? '' : v).trim(); }
+  function norm(v) { return limpio(v).toLowerCase(); }
+  function msg(t, tipo) { $('estado').textContent = t || ''; $('estado').className = 'status' + (tipo ? ' ' + tipo : ''); }
+  function el(tag, props, hijos) {
+    var e = document.createElement(tag);
+    Object.keys(props || {}).forEach(function (k) { if (k === 'text') e.textContent = props[k]; else if (k === 'cls') e.className = props[k]; else e[k] = props[k]; });
+    (hijos || []).forEach(function (h) { e.appendChild(h); });
+    return e;
+  }
+  function leer(nombre) {
+    return firebase.firestore().collection(nombre).get().then(function (snap) {
+      var lista = [];
+      snap.forEach(function (d) { var x = d.data(); x.id = d.id; lista.push(x); });
+      return lista;
+    });
+  }
+
+  async function cargar() {
+    try {
+      var r = await Promise.all([leer('bd_personas'), leer('computadores'), leer('bd_computadores')]);
+      personas = r[0]; asignaciones = r[1]; equipos = r[2];
+      var dl = $('lista-cc'); dl.textContent = '';
+      var vistos = {}, cc = [];
+      personas.forEach(function (p) { if (limpio(p.cc) && !vistos[norm(p.cc)]) { vistos[norm(p.cc)] = 1; cc.push(p); } });
+      asignaciones.forEach(function (a) { if (limpio(a.cc) && !vistos[norm(a.cc)]) { vistos[norm(a.cc)] = 1; cc.push(a); } });
+      cc.sort(function (a, b) { return norm(a.cc) < norm(b.cc) ? -1 : 1; });
+      cc.forEach(function (p) {
+        var nombre = (limpio(p.nombres) + ' ' + limpio(p.apellidos)).trim();
+        dl.appendChild(el('option', { value: limpio(p.cc), label: nombre }));
+      });
+      return true;
+    } catch (err) {
+      msg(err && err.code === 'permission-denied' ? 'No tiene permiso para ver esta información.' : ((err && err.message) || 'No se pudo cargar la información.'), 'err');
+      return false;
+    }
+  }
+
+  function mostrar() {
+    var q = norm($('cc').value);
+    $('res-persona').hidden = true; $('res-equipos').hidden = true;
+    if (!q) { msg('Escriba una CC.', 'err'); return; }
+    var persona = personas.filter(function (p) { return norm(p.cc) === q; })[0] || null;
+    var propios = asignaciones.filter(function (a) { return norm(a.cc) === q; });
+    if (!persona && !propios.length) { msg('No se encontró la CC ' + limpio($('cc').value) + '.', 'err'); return; }
+    msg('');
+
+    // Datos del empleado: de bd_personas; si no está, se completan con el inventario
+    var origen = persona;
+    $('aviso-persona').hidden = !!persona;
+    if (!persona) {
+      origen = {};
+      DATOS.forEach(function (d) { propios.forEach(function (a) { if (!origen[d[0]] && limpio(a[d[0]])) origen[d[0]] = limpio(a[d[0]]); }); });
+      $('aviso-persona').textContent = 'Esta CC todavía no está en bd_personas; los datos salen del inventario de computadores.';
+    }
+    var dl = $('datos'); dl.textContent = '';
+    DATOS.forEach(function (d) {
+      dl.appendChild(el('div', {}, [el('dt', { text: d[1] }), el('dd', { text: limpio(origen[d[0]]) || '—' })]));
+    });
+    $('res-persona').hidden = false;
+
+    // Equipos: cada registro del inventario con esa CC se enlaza por placa con bd_Computadores
+    var tb = $('tbody'); tb.textContent = '';
+    var usados = {}, filas = [];
+    propios.forEach(function (a) {
+      var placa = norm(a.placa);
+      var eq = (placa && equipos.filter(function (e) { return norm(e.placa) === placa; })[0]) || equipos.filter(function (e) { return e.id === a.id; })[0] || null;
+      var clave = placa || ('id:' + a.id);
+      if (usados[clave]) return;
+      usados[clave] = 1;
+      if (!placa && !eq) return;
+      filas.push({ eq: eq, placa: limpio(a.placa), estado: limpio((eq && eq.estado) || a.estado) });
+    });
+    $('total').textContent = '(' + filas.length + ')';
+    if (!filas.length) {
+      tb.appendChild(el('tr', {}, [el('td', { colSpan: 13, cls: 'vacio', text: 'Esta persona no tiene equipos asignados.' })]));
+    }
+    filas.forEach(function (f) {
+      var celdas = COLS.map(function (k) { return el('td', { text: limpio(f.eq ? f.eq[k] : '') || (k === 'placa' ? f.placa : '') }); });
+      celdas.push(el('td', { text: f.estado }));
+      tb.appendChild(el('tr', {}, celdas));
+    });
+    $('res-equipos').hidden = false;
+  }
+
+  $('f-buscar').addEventListener('submit', async function (e) {
+    e.preventDefault();
+    $('buscar').disabled = true;
+    if (await cargar()) mostrar();
+    $('buscar').disabled = false;
+  });
+  $('cc').addEventListener('change', function () { if (norm($('cc').value)) mostrar(); });
+
+  $('salir').addEventListener('click', function () { App.logout().then(function () { location.href = 'index.html'; }); });
+
+  App.init().then(function () {
+    yo = App.current();
+    if (!yo) {
+      $('denegado-texto').textContent = 'Inicie sesión para entrar a esta página.';
+      $('denegado').hidden = false; return;
+    }
+    if (yo.rol !== 'Administrador' && yo.rol !== 'Soporte') { $('denegado').hidden = false; return; }
+    $('quien').textContent = yo.nombre + ' (' + yo.rol + ')';
+    $('barra').hidden = false; $('contenido').hidden = false;
+    cargar();
+  });
+})();
+</script>
+</body>
+</html>
