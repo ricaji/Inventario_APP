@@ -95,7 +95,7 @@
       <div class="filtros" id="filtros"></div>
       <div class="tabla">
         <table>
-          <thead><tr><th>CC</th><th>Responsable</th><th>Sede</th><th>Dependencia</th><th>Hostname</th><th>Marca</th><th>Modelo</th><th>Placa</th><th>Serial</th><th>Estado</th><th>Acciones</th></tr></thead>
+          <thead><tr><th>CC</th><th>Nombres</th><th>Apellidos</th><th>Sede</th><th>Dependencia</th><th>Hostname</th><th>Marca</th><th>Modelo</th><th>Placa</th><th>Serial</th><th>Estado</th><th>Acciones</th></tr></thead>
           <tbody id="tbody"></tbody>
         </table>
       </div>
@@ -284,7 +284,7 @@
     var hayFiltro = q || FILTROS.some(function (f) { return filtroVal[f[0]]; });
     $('total').textContent = '(' + lista.length + (hayFiltro ? ' de ' + equipos.length : '') + ')';
     if (!lista.length) {
-      tb.appendChild(el('tr', {}, [el('td', { colSpan: 11, cls: 'vacio', text: equipos.length ? 'Ningún computador coincide con la búsqueda.' : 'Aún no hay computadores registrados.' })]));
+      tb.appendChild(el('tr', {}, [el('td', { colSpan: 12, cls: 'vacio', text: equipos.length ? 'Ningún computador coincide con la búsqueda.' : 'Aún no hay computadores registrados.' })]));
       return;
     }
     lista.forEach(function (eq) {
@@ -292,7 +292,8 @@
       bEd.addEventListener('click', function () { editar(eq); });
       tb.appendChild(el('tr', {}, [
         el('td', { text: eq.cc || '' }),
-        el('td', { text: ((eq.nombres || '') + ' ' + (eq.apellidos || '')).trim() }),
+        el('td', { text: eq.nombres || '' }),
+        el('td', { text: eq.apellidos || '' }),
         el('td', { text: eq.sede || '' }),
         el('td', { text: eq.dependencia || '' }),
         el('td', { text: eq.hostname || '' }),
