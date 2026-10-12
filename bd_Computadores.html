@@ -72,7 +72,7 @@
 
     <section class="card">
       <h2>Importar desde Excel</h2>
-      <p class="nota">Se importa todo el archivo, aunque tenga datos faltantes o repetidos; luego puede corregirlos con Editar. Suba un archivo .xlsx, .xls o .csv con los encabezados en la primera fila (PLACA, TIPO 1, TIPO 2, HOSTNAME, MARCA, MODELO, SERIAL, PROCESADOR, GENERACIÓN, RAM, TIPO, DD CANTIDAD 1, DD TIPO 1, DD CANTIDAD 2, DD TIPO 2, WINDOWS, CLAVE, OFFICE, ACTIVACIÓN, ANTIVIRUS, OBSERVACIONES). La columna CLASIFICACIÓN (Activo, Baja o Garantía) es opcional: si no está, todos quedan como Activo.</p>
+      <p class="nota">Se importa todo el archivo, aunque tenga datos faltantes o repetidos; luego puede corregirlos con Editar. Suba un archivo .xlsx, .xls o .csv con los encabezados en la primera fila (PLACA, TIPO 1, TIPO 2, HOSTNAME, MARCA, MODELO, SERIAL, PROCESADOR, GENERACIÓN, RAM, TIPO, DD CANTIDAD 1, DD TIPO 1, DD CANTIDAD 2, DD TIPO 2, WINDOWS, CLAVE, OFFICE, ACTIVACIÓN, ANTIVIRUS, OBSERVACIONES). La columna ESTADO (Activo, Baja o Garantía) es opcional: si no está, todos quedan como Activo.</p>
       <div class="acciones">
         <input id="archivo" type="file" accept=".xlsx,.xls,.csv" aria-label="Archivo de Excel">
         <button class="sec" type="button" id="plantilla">Descargar plantilla</button>
@@ -107,7 +107,7 @@
       </div>
       <div class="tabla">
         <table>
-          <thead><tr><th>Placa</th><th>Tipo 1</th><th>Tipo 2</th><th>Hostname</th><th>Marca</th><th>Modelo</th><th>Serial</th><th>Clasificación</th><th>Procesador</th><th>Generación</th><th>RAM</th><th>Windows</th><th>Office</th><th>Antivirus</th><th>Acciones</th></tr></thead>
+          <thead><tr><th>Placa</th><th>Tipo 1</th><th>Tipo 2</th><th>Hostname</th><th>Marca</th><th>Modelo</th><th>Serial</th><th>Estado</th><th>Procesador</th><th>Generación</th><th>RAM</th><th>Windows</th><th>Office</th><th>Antivirus</th><th>Acciones</th></tr></thead>
           <tbody id="tbody"></tbody>
         </table>
       </div>
@@ -139,7 +139,7 @@
     ['Equipo', [
       ['placa', 'Placa', true], ['tipo1', 'Tipo 1', false, 'select', TIPOS1], ['tipo2', 'Tipo 2', false, 'select', TIPOS2],
       ['hostname', 'Hostname', true], ['marca', 'Marca'], ['modelo', 'Modelo'], ['serial', 'Serial'],
-      ['estado', 'Clasificación (Estado)', true, 'select', ESTADOS]
+      ['estado', 'Estado', true, 'select', ESTADOS]
     ]],
     ['Hardware', [
       ['procesador', 'Procesador'], ['generacion', 'Generación'], ['ram', 'RAM'], ['ramTipo', 'Tipo (RAM)'],
@@ -367,7 +367,6 @@
   ENCAB['TIPO'] = 'ramTipo';           // en el Excel, el TIPO que sigue a RAM
   ENCAB['DD CANTIDAD 1'] = 'dd1Cantidad'; ENCAB['DD TIPO 1'] = 'dd1Tipo';
   ENCAB['DD CANTIDAD 2'] = 'dd2Cantidad'; ENCAB['DD TIPO 2'] = 'dd2Tipo';
-  ENCAB['CLASIFICACION'] = 'estado'; ENCAB['CLASIFICACION ESTADO'] = 'estado';
   var pendientes = [];
   function estadoDe(v) {
     var n = normEnc(v);
@@ -403,7 +402,7 @@
       Object.keys(mapa).forEach(function (j) { d[mapa[j]] = limpio(fila[j]); });
       var avisos = [];
       var est = estadoDe(d.estado);
-      if (est === null) { avisos.push('clasificación "' + d.estado + '" no válida, se dejó Activo'); est = 'Activo'; }
+      if (est === null) { avisos.push('estado "' + d.estado + '" no válido, se dejó Activo'); est = 'Activo'; }
       d.estado = est;
       var falta = CAMPOS.filter(function (c) { return c[2] && !d[c[0]]; }).map(function (c) { return c[1]; });
       if (falta.length) avisos.push('falta ' + falta.join(', '));
@@ -472,7 +471,7 @@
   });
   $('plantilla').addEventListener('click', function () {
     if (!window.XLSX) { msgImp('No se pudo cargar el lector de Excel.', 'err'); return; }
-    var enc = ['PLACA', 'TIPO 1', 'TIPO 2', 'HOSTNAME', 'MARCA', 'MODELO', 'SERIAL', 'PROCESADOR', 'GENERACIÓN', 'RAM', 'TIPO', 'DD CANTIDAD 1', 'DD TIPO 1', 'DD CANTIDAD 2', 'DD TIPO 2', 'WINDOWS', 'CLAVE', 'OFFICE', 'ACTIVACIÓN', 'ANTIVIRUS', 'OBSERVACIONES', 'CLASIFICACIÓN'];
+    var enc = ['PLACA', 'TIPO 1', 'TIPO 2', 'HOSTNAME', 'MARCA', 'MODELO', 'SERIAL', 'PROCESADOR', 'GENERACIÓN', 'RAM', 'TIPO', 'DD CANTIDAD 1', 'DD TIPO 1', 'DD CANTIDAD 2', 'DD TIPO 2', 'WINDOWS', 'CLAVE', 'OFFICE', 'ACTIVACIÓN', 'ANTIVIRUS', 'OBSERVACIONES', 'ESTADO'];
     var wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([enc]), 'Computadores');
     XLSX.writeFile(wb, 'plantilla_bd_computadores.xlsx');
