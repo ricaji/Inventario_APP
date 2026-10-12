@@ -107,7 +107,7 @@
       </div>
       <div class="tabla">
         <table>
-          <thead><tr><th>Placa</th><th>Tipo 1</th><th>Tipo 2</th><th>Hostname</th><th>Marca</th><th>Modelo</th><th>Serial</th><th>Estado</th><th>Procesador</th><th>Generación</th><th>RAM</th><th>Windows</th><th>Office</th><th>Antivirus</th><th>Acciones</th></tr></thead>
+          <thead><tr><th>Placa</th><th>CC asignada</th><th>Asignado a</th><th>Tipo 1</th><th>Tipo 2</th><th>Hostname</th><th>Marca</th><th>Modelo</th><th>Serial</th><th>Estado</th><th>Procesador</th><th>Generación</th><th>RAM</th><th>Windows</th><th>Office</th><th>Antivirus</th><th>Acciones</th></tr></thead>
           <tbody id="tbody"></tbody>
         </table>
       </div>
@@ -249,18 +249,36 @@
   });
 
   /* ---------- tabla ---------- */
+  // A quién está asignado cada equipo: registros de 'computadores' (CC + placa)
+  async function enlazarAsignados() {
+    try {
+      var snap = await firebase.firestore().collection('computadores').get(), porPlaca = {}, porId = {};
+      snap.forEach(function (d) {
+        var a = d.data();
+        if (!limpio(a.cc)) return;
+        if (limpio(a.placa)) { if (!porPlaca[norm(a.placa)]) porPlaca[norm(a.placa)] = a; }
+        else if (!a.liberado) porId[d.id] = a;
+      });
+      equipos.forEach(function (e) {
+        var a = (limpio(e.placa) && porPlaca[norm(e.placa)]) || porId[e.id] || null;
+        e.ccAsignada = a ? limpio(a.cc) : '';
+        e.asignadoA = a ? (limpio(a.nombres) + ' ' + limpio(a.apellidos)).trim() : '';
+      });
+    } catch (err) { /* sin acceso a las asignaciones: se muestra el resto */ }
+  }
   async function cargar() {
     try {
       var snap = await firebase.firestore().collection(COL).get();
       equipos = [];
       snap.forEach(function (d) { var x = d.data(); x.id = d.id; equipos.push(x); });
       equipos.sort(function (a, b) { return norm(a.hostname) < norm(b.hostname) ? -1 : 1; });
+      await enlazarAsignados();
       pintar();
     } catch (err) {
       msg(err && err.code === 'permission-denied' ? 'No tiene permiso para ver los computadores.' : ((err && err.message) || 'No se pudo cargar la lista.'), 'err');
     }
   }
-  var FILTROS = [['placa', 'Placa'], ['tipo1', 'Tipo 1'], ['tipo2', 'Tipo 2'], ['hostname', 'Hostname'], ['serial', 'Serial'], ['marca', 'Marca']];
+  var FILTROS = [['placa', 'Placa'], ['ccAsignada', 'CC asignada'], ['tipo1', 'Tipo 1'], ['tipo2', 'Tipo 2'], ['hostname', 'Hostname'], ['serial', 'Serial'], ['marca', 'Marca']];
   var filtroVal = {};
   var visibles = [];
   function hayFiltro0(q) { return !!q || FILTROS.some(function (f) { return norm(filtroVal[f[0]]); }); }
@@ -295,14 +313,14 @@
         if (norm(v) && norm(eq[FILTROS[i][0]]).indexOf(norm(v)) < 0) return false;
       }
       if (!q) return true;
-      return CAMPOS.some(function (c) { return norm(eq[c[0]]).indexOf(q) >= 0; });
+      return CAMPOS.some(function (c) { return norm(eq[c[0]]).indexOf(q) >= 0; }) || norm(eq.ccAsignada).indexOf(q) >= 0 || norm(eq.asignadoA).indexOf(q) >= 0;
     });
     visibles = lista;
     $('conteo').textContent = (hayFiltro0(q) ? 'Resultados: ' : 'Total: ') + lista.length + (hayFiltro0(q) ? ' de ' + equipos.length + ' computadores' : ' computadores');
     var hayFiltro = q || FILTROS.some(function (f) { return filtroVal[f[0]]; });
     $('total').textContent = '(' + lista.length + (hayFiltro ? ' de ' + equipos.length : '') + ')';
     if (!lista.length) {
-      tb.appendChild(el('tr', {}, [el('td', { colSpan: 15, cls: 'vacio', text: equipos.length ? 'Ningún computador coincide con la búsqueda.' : 'Aún no hay computadores registrados.' })]));
+      tb.appendChild(el('tr', {}, [el('td', { colSpan: 17, cls: 'vacio', text: equipos.length ? 'Ningún computador coincide con la búsqueda.' : 'Aún no hay computadores registrados.' })]));
       return;
     }
     lista.forEach(function (eq) {
@@ -310,6 +328,8 @@
       bEd.addEventListener('click', function () { editar(eq); });
       tb.appendChild(el('tr', {}, [
         el('td', { text: eq.placa || '' }),
+        el('td', { text: eq.ccAsignada || '' }),
+        el('td', { text: eq.asignadoA || '' }),
         el('td', { text: eq.tipo1 || '' }),
         el('td', { text: eq.tipo2 || '' }),
         el('td', { text: eq.hostname || '' }),
@@ -331,8 +351,8 @@
 
   /* ---------- exportar lo que se está viendo ---------- */
   function filasExport() {
-    var enc = CAMPOS.map(function (c) { return c[1]; });
-    return [enc].concat(visibles.map(function (e) { return CAMPOS.map(function (c) { return limpio(e[c[0]]); }); }));
+    var enc = CAMPOS.map(function (c) { return c[1]; }).concat(['CC asignada', 'Asignado a']);
+    return [enc].concat(visibles.map(function (e) { return CAMPOS.map(function (c) { return limpio(e[c[0]]); }).concat([limpio(e.ccAsignada), limpio(e.asignadoA)]); }));
   }
   function descargar(contenido, nombre, tipo) {
     var url = URL.createObjectURL(new Blob([contenido], { type: tipo }));
