@@ -26,6 +26,8 @@
   .acciones{display:flex;flex-wrap:wrap;gap:10px;margin-top:6px}
   .cabecera{display:flex;flex-wrap:wrap;gap:10px 16px;align-items:end;justify-content:space-between;margin-bottom:12px}
   .cabecera h2{margin:0}
+  .filtros{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px;margin-bottom:12px}
+  .filtros .field{margin:0}
   .buscar{width:min(100%,340px)}
   .tabla{overflow-x:auto}
   table{width:100%;min-width:960px;border-collapse:collapse;font-size:14px}
@@ -90,9 +92,10 @@
           <input id="buscar" type="search" autocomplete="off" placeholder="CC, nombre, hostname, placa, serial…">
         </div>
       </div>
+      <div class="filtros" id="filtros"></div>
       <div class="tabla">
         <table>
-          <thead><tr><th>CC</th><th>Responsable</th><th>Sede</th><th>Dependencia</th><th>Hostname</th><th>Marca / Modelo</th><th>Placa</th><th>Serial</th><th>Estado</th><th>Acciones</th></tr></thead>
+          <thead><tr><th>CC</th><th>Responsable</th><th>Sede</th><th>Dependencia</th><th>Hostname</th><th>Marca</th><th>Modelo</th><th>Placa</th><th>Serial</th><th>Estado</th><th>Acciones</th></tr></thead>
           <tbody id="tbody"></tbody>
         </table>
       </div>
@@ -243,15 +246,37 @@
       msg(err && err.code === 'permission-denied' ? 'No tiene permiso para ver los computadores.' : ((err && err.message) || 'No se pudo cargar la lista.'), 'err');
     }
   }
+  var FILTROS = [['estado', 'Estado'], ['sede', 'Sede'], ['dependencia', 'Dependencia'], ['marca', 'Marca'], ['modelo', 'Modelo']];
+  var filtroVal = {};
+  function armarFiltros() {
+    var cont = $('filtros'); cont.textContent = '';
+    FILTROS.forEach(function (f) {
+      var k = f[0], vistos = {};
+      equipos.forEach(function (e) { var v = limpio(e[k]); if (v) vistos[v] = 1; });
+      var vals = Object.keys(vistos).sort(function (a, b) { return a.toLowerCase() < b.toLowerCase() ? -1 : 1; });
+      if (filtroVal[k] && vals.indexOf(filtroVal[k]) < 0) filtroVal[k] = '';
+      var sel = el('select', { id: 'f-' + k });
+      sel.appendChild(el('option', { value: '', text: 'Todos' }));
+      vals.forEach(function (v) { var o = el('option', { value: v, text: v }); if (v === filtroVal[k]) o.selected = true; sel.appendChild(o); });
+      sel.addEventListener('change', function () { filtroVal[k] = sel.value; pintar(); });
+      cont.appendChild(el('div', { cls: 'field' }, [el('label', { htmlFor: 'f-' + k, text: f[1] }), sel]));
+    });
+  }
   function pintar() {
     var q = norm($('buscar').value), tb = $('tbody'); tb.textContent = '';
+    armarFiltros();
     var lista = equipos.filter(function (eq) {
+      for (var i = 0; i < FILTROS.length; i++) {
+        var v = filtroVal[FILTROS[i][0]];
+        if (v && (FILTROS[i][0] === 'estado' ? eq.estado || '' : limpio(eq[FILTROS[i][0]])) !== v) return false;
+      }
       if (!q) return true;
       return CAMPOS.some(function (c) { return norm(eq[c[0]]).indexOf(q) >= 0; });
     });
-    $('total').textContent = '(' + lista.length + (q ? ' de ' + equipos.length : '') + ')';
+    var hayFiltro = q || FILTROS.some(function (f) { return filtroVal[f[0]]; });
+    $('total').textContent = '(' + lista.length + (hayFiltro ? ' de ' + equipos.length : '') + ')';
     if (!lista.length) {
-      tb.appendChild(el('tr', {}, [el('td', { colSpan: 10, cls: 'vacio', text: equipos.length ? 'Ningún computador coincide con la búsqueda.' : 'Aún no hay computadores registrados.' })]));
+      tb.appendChild(el('tr', {}, [el('td', { colSpan: 11, cls: 'vacio', text: equipos.length ? 'Ningún computador coincide con la búsqueda.' : 'Aún no hay computadores registrados.' })]));
       return;
     }
     lista.forEach(function (eq) {
@@ -263,7 +288,8 @@
         el('td', { text: eq.sede || '' }),
         el('td', { text: eq.dependencia || '' }),
         el('td', { text: eq.hostname || '' }),
-        el('td', { text: ((eq.marca || '') + ' ' + (eq.modelo || '')).trim() }),
+        el('td', { text: eq.marca || '' }),
+        el('td', { text: eq.modelo || '' }),
         el('td', { text: eq.placa || '' }),
         el('td', { text: eq.serial || '' }),
         el('td', { text: eq.estado || '' }),
