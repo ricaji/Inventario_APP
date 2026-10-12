@@ -212,10 +212,10 @@
     $('res-equipos').hidden = false;
   }
 
-  // Sugerencias de placa: equipos libres que contienen lo escrito (en placa, hostname o serial)
+  // Sugerencias de placa: equipos libres que contienen lo escrito (solo en la placa de bd_Computadores)
   function sugerir() {
     var t = norm($('placa-nueva').value), lib = $('lista-libres'); lib.textContent = '';
-    var coincide = function (e) { return !t || [e.placa, e.hostname, e.serial].some(function (v) { return norm(v).indexOf(t) >= 0; }); };
+    var coincide = function (e) { return !t || norm(e.placa).indexOf(t) >= 0; };
     libres().filter(coincide).sort(function (a, b) { return norm(a.placa) < norm(b.placa) ? -1 : 1; }).slice(0, 50).forEach(function (e) {
       var d = [e.hostname, e.marca, e.modelo].map(limpio).filter(Boolean).join(' ');
       lib.appendChild(el('option', { value: limpio(e.placa), label: d }));
@@ -223,10 +223,10 @@
     var hay = lib.children.length;
     if (t && !hay) {
       var ocup = equipos.filter(function (e) { return limpio(e.placa) && coincide(e) && ocupado(e); }).slice(0, 5);
-      msgAsig(ocup.length ? 'Con ese dato solo hay equipos ya asignados: ' + ocup.map(function (e) {
+      msgAsig(ocup.length ? 'Con ese número solo hay equipos ya asignados: ' + ocup.map(function (e) {
         var d = asignaciones.filter(function (a) { return limpio(a.cc) && norm(a.placa) === norm(e.placa); })[0];
         return limpio(e.placa) + ' (CC ' + limpio((d && d.cc) || e.cc) + ')';
-      }).join(', ') + '.' : 'No hay equipos libres con ese dato.', 'err');
+      }).join(', ') + '.' : 'No hay equipos libres con ese número de placa.', 'err');
     } else if (!$('estado-asig').textContent || $('estado-asig').className.indexOf('err') >= 0) msgAsig('');
   }
   $('placa-nueva').addEventListener('input', sugerir);
