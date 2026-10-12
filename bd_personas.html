@@ -30,6 +30,12 @@
   .filtros .field{margin:0}
   .exporta{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:8px 16px;margin-bottom:10px}
   .exporta .botones{display:flex;flex-wrap:wrap;gap:8px}
+  .menu-exp{position:relative}
+  .menu-exp summary{list-style:none;display:inline-flex;align-items:center;cursor:pointer}
+  .menu-exp summary::-webkit-details-marker{display:none}
+  .menu-exp .menu-lista{position:absolute;right:0;top:calc(100% + 4px);z-index:20;min-width:190px;display:flex;flex-direction:column;background:var(--card);border:1px solid var(--line);border-radius:6px;box-shadow:0 8px 20px rgba(0,0,0,.18);padding:4px}
+  .menu-exp .menu-lista button{background:none;border:0;color:var(--ink);text-align:left;padding:9px 12px;font:inherit;font-size:14px;cursor:pointer;border-radius:4px}
+  .menu-exp .menu-lista button:hover,.menu-exp .menu-lista button:focus-visible{background:var(--ground)}
   .buscar{width:min(100%,340px)}
   .tabla{overflow:auto;max-height:70vh;border:1px solid var(--line);border-radius:6px}
   .tabla th{position:sticky;top:0;background:var(--card);z-index:1}
@@ -115,9 +121,14 @@
           <button class="sec mini" type="button" id="eliminar" hidden>Eliminar seleccionados</button>
           <button class="sec mini" type="button" id="eliminar-no" hidden>Cancelar</button>
           <button class="sec mini" type="button" id="dup">Ver duplicados</button>
-          <button class="sec mini" type="button" id="exp-xlsx">Exportar Excel</button>
-          <button class="sec mini" type="button" id="exp-csv">Exportar CSV</button>
-          <button class="sec mini" type="button" id="exp-txt">Exportar texto plano</button>
+          <details class="menu-exp" id="menu-exp">
+            <summary class="sec mini btn-summary">Exportar ▾</summary>
+            <div class="menu-lista">
+              <button type="button" id="exp-xlsx">Excel (.xlsx)</button>
+              <button type="button" id="exp-csv">CSV</button>
+              <button type="button" id="exp-txt">Texto plano</button>
+            </div>
+          </details>
         </span>
       </div>
       <div class="tabla">
@@ -603,6 +614,14 @@
     $('barra').hidden = false; $('contenido').hidden = false;
     cargar();
   });
+})();
+</script>
+<script>
+(function () {
+  var m = document.getElementById('menu-exp'); if (!m) return;
+  m.addEventListener('click', function (e) { if (e.target.closest('.menu-lista button')) m.open = false; });
+  document.addEventListener('click', function (e) { if (m.open && !m.contains(e.target)) m.open = false; });
+  document.addEventListener('keydown', function (e) { if (e.key === 'Escape') m.open = false; });
 })();
 </script>
 </body>
