@@ -53,10 +53,10 @@
   <header class="barra" id="barra" hidden>
     <h1 class="marca">Inventario APP <span>· Asignados</span></h1>
     <span class="quien" id="quien"></span>
-    <a class="link" href="index.html">Inicio</a>
+    <span id="nav-gestor" style="display:contents"><a class="link" href="index.html">Inicio</a>
     <a class="link" href="bd_personas.html">Personas</a>
     <a class="link" href="bd_Computadores.html">Equipos</a>
-    <a class="link" href="Inv_Computadores.html">Inventario</a>
+    <a class="link" href="Inv_Computadores.html">Inventario</a></span>
     <button class="sec mini" type="button" id="salir">Salir</button>
   </header>
 
@@ -424,6 +424,7 @@
     if (!gestor && yo.rol !== 'Contratista' && yo.rol !== 'Vinculado') { $('denegado').hidden = false; return; }
     // Contratista y Vinculado: solo consulta (sin asignar ni reasignar)
     soloLectura = !gestor;
+    if (soloLectura) $('nav-gestor').style.display = 'none';
     if (soloLectura) { $('f-asignar').hidden = true; $('f-asignar').style.display = 'none'; $('th-acc').hidden = true; }
     $('quien').textContent = yo.nombre + ' (' + yo.rol + ')';
     $('barra').hidden = false; $('contenido').hidden = false;
