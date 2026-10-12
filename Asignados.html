@@ -117,6 +117,7 @@
   }
   function msgAsig(t, tipo) { $('estado-asig').textContent = t || ''; $('estado-asig').className = 'status' + (tipo ? ' ' + tipo : ''); }
   function ocupado(e) {
+    if (limpio(e.cc)) return true;   // Documento de Identidad ya puesto en bd_Computadores
     return asignaciones.some(function (a) {
       if (!limpio(a.cc)) return false;
       return (limpio(e.placa) && norm(a.placa) === norm(e.placa)) || (a.id === e.id && !a.liberado);
@@ -139,6 +140,7 @@
       var vistos = {}, cc = [];
       personas.forEach(function (p) { if (limpio(p.cc) && !vistos[norm(p.cc)]) { vistos[norm(p.cc)] = 1; cc.push(p); } });
       asignaciones.forEach(function (a) { if (limpio(a.cc) && !vistos[norm(a.cc)]) { vistos[norm(a.cc)] = 1; cc.push(a); } });
+      equipos.forEach(function (e) { if (limpio(e.cc) && !vistos[norm(e.cc)]) { vistos[norm(e.cc)] = 1; cc.push({ cc: e.cc }); } });
       cc.sort(function (a, b) { return norm(a.cc) < norm(b.cc) ? -1 : 1; });
       cc.forEach(function (p) {
         var nombre = (limpio(p.nombres) + ' ' + limpio(p.apellidos)).trim();
@@ -157,16 +159,17 @@
     if (!q) { msg('Escriba una CC.', 'err'); return; }
     var persona = personas.filter(function (p) { return norm(p.cc) === q; })[0] || null;
     var propios = asignaciones.filter(function (a) { return norm(a.cc) === q; });
-    if (!persona && !propios.length) { msg('No se encontró la CC ' + limpio($('cc').value) + '.', 'err'); return; }
+    var porCC = equipos.filter(function (e) { return norm(e.cc) === q; });
+    if (!persona && !propios.length && !porCC.length) { msg('No se encontró la CC ' + limpio($('cc').value) + '.', 'err'); return; }
     msg('');
 
     // Datos del empleado: de bd_personas; si no está, se completan con el inventario
     var origen = persona;
     $('aviso-persona').hidden = !!persona;
     if (!persona) {
-      origen = {};
+      origen = { cc: limpio($('cc').value) };
       DATOS.forEach(function (d) { propios.forEach(function (a) { if (!origen[d[0]] && limpio(a[d[0]])) origen[d[0]] = limpio(a[d[0]]); }); });
-      $('aviso-persona').textContent = 'Esta CC todavía no está en bd_personas; los datos salen del inventario de computadores.';
+      $('aviso-persona').textContent = propios.length ? 'Esta CC todavía no está en bd_personas; los datos salen del inventario de computadores.' : 'Esta CC todavía no está en bd_personas; solo se muestran sus equipos.';
     }
     var dl = $('datos'); dl.textContent = '';
     DATOS.forEach(function (d) {
@@ -184,6 +187,13 @@
       if (usados[clave]) { usados[clave].ids.push(a.id); return; }
       if (!placa && !eq) return;
       usados[clave] = { eq: eq, placa: limpio(a.placa), estado: limpio((eq && eq.estado) || a.estado), ids: [a.id] };
+      filas.push(usados[clave]);
+    });
+    // Equipos de bd_Computadores que tienen esta CC en "Documento de Identidad"
+    porCC.forEach(function (e) {
+      var clave = norm(e.placa) || ('id:' + e.id);
+      if (usados[clave]) { if (!usados[clave].eq) usados[clave].eq = e; return; }
+      usados[clave] = { eq: e, placa: limpio(e.placa), estado: limpio(e.estado), ids: [] };
       filas.push(usados[clave]);
     });
     $('total').textContent = '(' + filas.length + ')';
@@ -222,6 +232,7 @@
             actualizadoPor: yo.usuario, actualizado: firebase.firestore.FieldValue.serverTimestamp()
           });
         }
+        if (f.eq && limpio(f.eq.cc)) await firebase.firestore().collection('bd_computadores').doc(f.eq.id).update({ cc: '', actualizadoPor: yo.usuario, actualizado: firebase.firestore.FieldValue.serverTimestamp() });
         await cargar(); mostrar(); msgAsig('Equipo liberado: ' + (f.placa || 'sin placa') + '.', 'ok');
       } catch (err) {
         b.disabled = false; paso = 0; b.textContent = 'Quitar';
@@ -242,7 +253,7 @@
       var eq = equipos.filter(function (x) { return norm(x.placa) === v; })[0];
       if (!eq) throw new Error('No existe la placa ' + limpio($('placa-nueva').value) + ' en bd_Computadores.');
       if (ocupado(eq)) {
-        var dueño = asignaciones.filter(function (a) { return limpio(a.cc) && norm(a.placa) === v; })[0];
+        var dueño = asignaciones.filter(function (a) { return limpio(a.cc) && norm(a.placa) === v; })[0] || (limpio(eq.cc) ? eq : null);
         throw new Error('Esa placa ya está asignada' + (dueño ? ' a la CC ' + limpio(dueño.cc) : '') + '. Quítela primero.');
       }
       var d = {};
@@ -253,6 +264,7 @@
       var reuso = asignaciones.filter(function (a) { return norm(a.cc) === actual.q && !limpio(a.placa) && a.liberado; })[0];
       if (reuso) { d.liberado = firebase.firestore.FieldValue.delete(); await col.doc(reuso.id).update(d); }
       else { d.creadoPor = yo.usuario; await col.add(d); }
+      await firebase.firestore().collection('bd_computadores').doc(eq.id).update({ cc: limpio(actual.datos.cc) || limpio($('cc').value), actualizadoPor: yo.usuario, actualizado: firebase.firestore.FieldValue.serverTimestamp() });
       await cargar(); mostrar(); msgAsig('Equipo ' + d.placa + ' asignado.', 'ok');
     } catch (err) {
       msgAsig(err && err.code === 'permission-denied' ? 'No tiene permiso para realizar esta acción.' : ((err && err.message) || 'No se pudo asignar.'), 'err');
