@@ -105,6 +105,7 @@
           <button class="sec mini" type="button" id="exp-txt">Exportar texto plano</button>
         </span>
       </div>
+      <p class="status" id="estado-tabla" role="status" aria-live="polite"></p>
       <div class="tabla">
         <table>
           <thead><tr id="encabezado"></tr></thead>
@@ -155,6 +156,7 @@
   var CAMPOS = [];
   GRUPOS.forEach(function (g) { g[1].forEach(function (c) { CAMPOS.push(c); }); });
 
+  function msgT(t, tipo) { $('estado-tabla').textContent = t || ''; $('estado-tabla').className = 'status' + (tipo ? ' ' + tipo : ''); }
   function msg(t, tipo) { $('estado').textContent = t || ''; $('estado').className = 'status' + (tipo ? ' ' + tipo : ''); }
   function el(tag, props, hijos) {
     var e = document.createElement(tag);
@@ -336,8 +338,8 @@
   $('eliminar').addEventListener('click', async function () {
     var ids = idsSel();
     if (!ids.length) return;
-    if (!confirmando) { confirmando = true; actualizarSeleccion(); msg('Se eliminarán ' + ids.length + ' computador(es). Esta acción no se puede deshacer; confirme o cancele.', 'err'); return; }
-    $('eliminar').disabled = true; msg('Eliminando…');
+    if (!confirmando) { confirmando = true; actualizarSeleccion(); msgT('Se eliminarán ' + ids.length + ' computador(es). Esta acción no se puede deshacer; confirme o cancele.', 'err'); return; }
+    $('eliminar').disabled = true; msgT('Eliminando…');
     try {
       var db = firebase.firestore(), col = db.collection(COL);
       for (var i = 0; i < ids.length; i += 400) {
@@ -347,16 +349,16 @@
       }
       seleccion = {}; confirmando = false;
       if (editando && ids.indexOf(editando) >= 0) salirEdicion();
-      msg('Se eliminaron ' + ids.length + ' computador(es).', 'ok');
+      msgT('Se eliminaron ' + ids.length + ' computador(es).', 'ok');
       await cargar();
     } catch (err) {
       confirmando = false;
-      msg(err && err.code === 'permission-denied' ? 'No tiene permiso para eliminar (revise las reglas de Firestore).' : ((err && err.message) || 'No se pudo eliminar.'), 'err');
+      msgT(err && err.code === 'permission-denied' ? 'No tiene permiso para eliminar (revise las reglas de Firestore).' : ((err && err.message) || 'No se pudo eliminar.'), 'err');
       actualizarSeleccion();
     }
     $('eliminar').disabled = false;
   });
-  $('eliminar-no').addEventListener('click', function () { confirmando = false; msg(''); actualizarSeleccion(); });
+  $('eliminar-no').addEventListener('click', function () { confirmando = false; msgT(''); actualizarSeleccion(); });
   function pintar() {
     var q = '', tb = $('tbody'); tb.textContent = '';
     armarFiltros();
@@ -404,7 +406,7 @@
     setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
   }
   function nombreArchivo(ext) { return 'bd_computadores_' + new Date().toISOString().slice(0, 10) + '.' + ext; }
-  function sinDatos() { if (!visibles.length) { msg('No hay resultados para exportar.', 'err'); return true; } msg(''); return false; }
+  function sinDatos() { if (!visibles.length) { msgT('No hay resultados para exportar.', 'err'); return true; } msgT(''); return false; }
   $('exp-csv').addEventListener('click', function () {
     if (sinDatos()) return;
     var csv = filasExport().map(function (f) { return f.map(function (v) { return '"' + v.replace(/"/g, '""') + '"'; }).join(';'); }).join('\r\n');
@@ -417,7 +419,7 @@
   });
   $('exp-xlsx').addEventListener('click', function () {
     if (sinDatos()) return;
-    if (!window.XLSX) { msg('No se pudo cargar el generador de Excel. Use CSV o revise su conexión.', 'err'); return; }
+    if (!window.XLSX) { msgT('No se pudo cargar el generador de Excel. Use CSV o revise su conexión.', 'err'); return; }
     var wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(filasExport()), 'Computadores');
     XLSX.writeFile(wb, nombreArchivo('xlsx'));
