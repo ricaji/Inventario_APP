@@ -66,7 +66,7 @@
 
     <section class="card">
       <h2>Importar desde Excel</h2>
-      <p class="nota">Suba un archivo .xlsx, .xls o .csv con los encabezados en la primera fila (CC, NOMBRES, APELLIDOS, SEDE, DEPENDENCIA, TIPO CONTRATO, NÚMERO CONTRATO, TIPO 1, TIPO 2, HOSTNAME, MARCA, MODELO, PLACA, SERIAL, PROCESADOR, GENERACIÓN, RAM, TIPO, DD CANTIDAD 1, DD TIPO 1, DD CANTIDAD 2, DD TIPO 2, WINDOWS, CLAVE, OFFICE, ACTIVACIÓN, ANTIVIRUS, OBSERVACIONES). La columna ESTADO es opcional: si no está, todos se registran como <strong>Activo</strong>.</p>
+      <p class="nota">Se importa todo el archivo, aunque tenga datos faltantes o repetidos; luego puede corregirlos con Editar. Suba un archivo .xlsx, .xls o .csv con los encabezados en la primera fila (CC, NOMBRES, APELLIDOS, SEDE, DEPENDENCIA, TIPO CONTRATO, NÚMERO CONTRATO, TIPO 1, TIPO 2, HOSTNAME, MARCA, MODELO, PLACA, SERIAL, PROCESADOR, GENERACIÓN, RAM, TIPO, DD CANTIDAD 1, DD TIPO 1, DD CANTIDAD 2, DD TIPO 2, WINDOWS, CLAVE, OFFICE, ACTIVACIÓN, ANTIVIRUS, OBSERVACIONES). La columna ESTADO es opcional: si no está, todos se registran como <strong>Activo</strong>.</p>
       <div class="acciones">
         <input id="archivo" type="file" accept=".xlsx,.xls,.csv" aria-label="Archivo de Excel">
         <button class="sec" type="button" id="plantilla">Descargar plantilla</button>
@@ -305,32 +305,28 @@
       if (campo && !Object.keys(mapa).some(function (k) { return mapa[k] === campo; })) mapa[j] = campo;
       else if (limpio(h) !== '') res.ignoradas.push(limpio(h));
     });
-    var tiene = {}; Object.keys(mapa).forEach(function (k) { tiene[mapa[k]] = true; });
-    var faltan = CAMPOS.filter(function (c) { return c[2] && c[0] !== 'estado' && !tiene[c[0]]; }).map(function (c) { return c[1]; });
-    if (faltan.length) { res.fatal = 'Faltan columnas obligatorias en el archivo: ' + faltan.join(', ') + '.'; return res; }
-
+    if (!Object.keys(mapa).length) { res.fatal = 'No se reconoció ninguna columna. Revise que los encabezados estén en la primera fila.'; return res; }
+    // Se importa todo; los avisos (datos faltantes o repetidos) se corrigen luego a mano con Editar.
     var vistos = { hostname: {}, serial: {}, placa: {} };
-    equipos.forEach(function (e) { ['hostname', 'serial', 'placa'].forEach(function (k) { if (norm(e[k])) vistos[k][norm(e[k])] = 'ya registrado'; }); });
+    equipos.forEach(function (e) { ['hostname', 'serial', 'placa'].forEach(function (k) { if (norm(e[k])) vistos[k][norm(e[k])] = 1; }); });
     for (var f = iEnc + 1; f < filas.length; f++) {
       var fila = filas[f];
       if (!fila.some(function (c) { return limpio(c) !== ''; })) continue;
       var d = {};
       CAMPOS.forEach(function (c) { d[c[0]] = ''; });
       Object.keys(mapa).forEach(function (j) { d[mapa[j]] = limpio(fila[j]); });
-      var motivo = null;
+      var avisos = [];
       var est = estadoDe(d.estado);
-      if (est === null) motivo = 'Estado no válido (' + d.estado + '); use Activo, Baja o Garantía';
-      else d.estado = est;
-      for (var k = 0; k < CAMPOS.length && !motivo; k++) {
-        if (CAMPOS[k][2] && !d[CAMPOS[k][0]]) motivo = 'falta ' + CAMPOS[k][1];
-      }
+      if (est === null) { avisos.push('estado "' + d.estado + '" no válido, se dejó Activo'); est = 'Activo'; }
+      d.estado = est;
+      var falta = CAMPOS.filter(function (c) { return c[2] && !d[c[0]]; }).map(function (c) { return c[1]; });
+      if (falta.length) avisos.push('falta ' + falta.join(', '));
       ['hostname', 'serial', 'placa'].forEach(function (campo) {
-        if (motivo || !d[campo]) return;
+        if (!d[campo]) return;
         var n = norm(d[campo]);
-        if (vistos[campo][n]) motivo = campo + ' ' + d[campo] + ' repetido (' + (typeof vistos[campo][n] === 'number' ? 'fila ' + vistos[campo][n] : vistos[campo][n]) + ')';
+        if (vistos[campo][n]) avisos.push(campo + ' ' + d[campo] + ' repetido'); else vistos[campo][n] = 1;
       });
-      if (motivo) { res.errores.push('Fila ' + (f + 1) + ': ' + motivo + '.'); continue; }
-      ['hostname', 'serial', 'placa'].forEach(function (campo) { if (d[campo]) vistos[campo][norm(d[campo])] = f + 1; });
+      if (avisos.length) res.errores.push('Fila ' + (f + 1) + ': ' + avisos.join('; ') + '.');
       res.validos.push(d);
     }
     return res;
@@ -352,7 +348,7 @@
       if (res.fatal) { msgImp(res.fatal, 'err'); return; }
       pendientes = res.validos;
       var txt = res.validos.length + ' computador(es) listos para importar';
-      if (res.errores.length) txt += ' y ' + res.errores.length + ' fila(s) con errores que se omitirán';
+      if (res.errores.length) txt += ' (se importan todas). ' + res.errores.length + ' fila(s) tienen datos por revisar y podrá corregirlas luego con Editar';
       txt += '.';
       if (res.ignoradas.length) txt += ' Columnas no reconocidas (se ignoran): ' + res.ignoradas.join(', ') + '.';
       $('resumen-txt').textContent = txt;
