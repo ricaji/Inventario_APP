@@ -114,6 +114,7 @@
         <span class="botones">
           <button class="sec mini" type="button" id="eliminar" hidden>Eliminar seleccionados</button>
           <button class="sec mini" type="button" id="eliminar-no" hidden>Cancelar</button>
+          <button class="sec mini" type="button" id="dup">Ver duplicados</button>
           <button class="sec mini" type="button" id="exp-xlsx">Exportar Excel</button>
           <button class="sec mini" type="button" id="exp-csv">Exportar CSV</button>
           <button class="sec mini" type="button" id="exp-txt">Exportar texto plano</button>
@@ -339,6 +340,30 @@
     $('eliminar').disabled = false;
   });
   $('eliminar-no').addEventListener('click', function () { confirmando = false; msgT(''); actualizarSeleccion(); });
+  /* ---------- duplicados: misma CC o mismo nombre y apellidos ---------- */
+  var soloDup = false;
+  function claveCC(e) { return norm(e.cc).replace(/[^a-z0-9]/g, ''); }
+  function claveNombre(e) { var n = norm(e.nombres).replace(/\s+/g, ' '), a = norm(e.apellidos).replace(/\s+/g, ' '); return n && a ? n + '|' + a : ''; }
+  function duplicados() {
+    var porCC = {}, porNom = {}, set = {}, nCC = 0, nNom = 0;
+    equipos.forEach(function (e) {
+      var c = claveCC(e), n = claveNombre(e);
+      if (c) (porCC[c] = porCC[c] || []).push(e);
+      if (n) (porNom[n] = porNom[n] || []).push(e);
+    });
+    Object.keys(porCC).forEach(function (k) { if (porCC[k].length > 1) { nCC++; porCC[k].forEach(function (e) { set[e.id] = k; }); } });
+    Object.keys(porNom).forEach(function (k) { if (porNom[k].length > 1) { nNom++; porNom[k].forEach(function (e) { if (!set[e.id]) set[e.id] = 'z' + k; }); } });
+    return { set: set, nCC: nCC, nNom: nNom, total: Object.keys(set).length };
+  }
+  $('dup').addEventListener('click', function () {
+    soloDup = !soloDup; confirmando = false;
+    $('dup').textContent = soloDup ? 'Ver todos' : 'Ver duplicados';
+    if (soloDup) {
+      var d = duplicados();
+      msgT(d.total ? 'Hay ' + d.total + ' registros duplicados: ' + d.nCC + ' CC repetida(s) y ' + d.nNom + ' nombre(s) repetido(s). Se muestran juntos; marque los que sobran y elimínelos.' : 'No se encontraron personas duplicadas (ni por CC ni por nombres y apellidos).', d.total ? 'err' : 'ok');
+    } else msgT('');
+    pintar();
+  });
   function pintar() {
     var q = norm($('buscar').value), tb = $('tbody'); tb.textContent = '';
     armarFiltros();
@@ -350,6 +375,10 @@
       if (!q) return true;
       return CAMPOS.some(function (c) { return norm(eq[c[0]]).indexOf(q) >= 0; });
     });
+    if (soloDup) {
+      var dd = duplicados().set;
+      lista = lista.filter(function (e) { return dd[e.id]; }).sort(function (a, b) { return dd[a.id] < dd[b.id] ? -1 : dd[a.id] > dd[b.id] ? 1 : 0; });
+    }
     visibles = lista;
     $('conteo').textContent = (hayFiltro0(q) ? 'Resultados: ' : 'Total: ') + lista.length + (hayFiltro0(q) ? ' de ' + equipos.length + ' personas' : ' personas');
     var hayFiltro = q || FILTROS.some(function (f) { return filtroVal[f[0]]; });
