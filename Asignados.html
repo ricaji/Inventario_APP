@@ -232,11 +232,11 @@
     filas.forEach(function (f) {
       var celdas = COLS.map(function (k) { return el('td', { text: limpio(f.eq ? f.eq[k] : '') || (k === 'placa' ? f.placa : '') }); });
       celdas.push(el('td', { text: f.estado }));
-      var acc = [botonQuitar(f)];
+      var acc = [];
       if (f.eq) {
         var br = el('button', { cls: 'sec mini', type: 'button', text: 'Reasignar' });
         br.addEventListener('click', function () { abrirReasignar(f.eq, true); });
-        acc.unshift(br);
+        acc.push(br);
       }
       celdas.push(el('td', {}, [el('div', { cls: 'celda-acc' }, acc)]));
       tb.appendChild(el('tr', {}, celdas));
@@ -378,32 +378,6 @@
     }
     $('modal-no').disabled = false;
   });
-
-  function botonQuitar(f) {
-    var b = el('button', { cls: 'sec mini', type: 'button', text: 'Quitar' }), paso = 0, t;
-    b.addEventListener('click', async function () {
-      if (!paso) {
-        paso = 1; b.textContent = '¿Confirmar?';
-        t = setTimeout(function () { paso = 0; b.textContent = 'Quitar'; }, 4000); return;
-      }
-      clearTimeout(t); b.disabled = true; msgAsig('Quitando…');
-      try {
-        var col = firebase.firestore().collection('computadores');
-        for (var i = 0; i < f.ids.length; i++) {
-          await col.doc(f.ids[i]).update({
-            placaAnterior: f.placa, placa: '', liberado: firebase.firestore.FieldValue.serverTimestamp(), liberadoPor: yo.usuario,
-            actualizadoPor: yo.usuario, actualizado: firebase.firestore.FieldValue.serverTimestamp()
-          });
-        }
-        if (f.eq && limpio(f.eq.cc)) await firebase.firestore().collection('bd_computadores').doc(f.eq.id).update({ cc: '', actualizadoPor: yo.usuario, actualizado: firebase.firestore.FieldValue.serverTimestamp() });
-        await cargar(); mostrar(); msgAsig('Equipo liberado: ' + (f.placa || 'sin placa') + '.', 'ok');
-      } catch (err) {
-        b.disabled = false; paso = 0; b.textContent = 'Quitar';
-        msgAsig(err && err.code === 'permission-denied' ? 'No tiene permiso para realizar esta acción.' : ((err && err.message) || 'No se pudo quitar.'), 'err');
-      }
-    });
-    return b;
-  }
 
   $('f-asignar').addEventListener('submit', async function (e) {
     e.preventDefault();
