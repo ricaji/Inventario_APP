@@ -133,13 +133,12 @@
   var ESTADOS = ['Activo', 'Baja', 'Garantía'];
   // Grupos de preguntas del formulario: [clave, etiqueta, obligatorio, tipo, opciones]
   var GRUPOS = [
-    ['Estado', [['estado', 'Estado', true, 'select', ESTADOS]]],
     ['Responsable', [
       ['cc', 'CC', true], ['nombres', 'Nombres', true], ['apellidos', 'Apellidos', true],
       ['sede', 'Sede'], ['dependencia', 'Dependencia'],
       ['tipoContrato', 'Tipo contrato'], ['numeroContrato', 'Número contrato']
     ]],
-    ['Clasificación', [['tipo1', 'Tipo 1', false, 'select', ['', 'Computador', 'Celular', 'Tablet']], ['tipo2', 'Tipo 2', false, 'select', ['', 'Portátil', 'Escritorio', 'Todo en uno', 'Celular', 'Tablet']]]],
+    ['Clasificación', [['estado', 'Estado', true, 'select', ESTADOS], ['tipo1', 'Tipo 1', false, 'select', ['', 'Computador', 'Celular', 'Tablet']], ['tipo2', 'Tipo 2', false, 'select', ['', 'Portátil', 'Escritorio', 'Todo en uno', 'Celular', 'Tablet']]]],
     ['Equipo', [
       ['hostname', 'Hostname', true], ['marca', 'Marca'], ['modelo', 'Modelo'], ['placa', 'Placa'], ['serial', 'Serial']
     ]],
