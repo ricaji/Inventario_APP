@@ -91,10 +91,6 @@
     <section class="card">
       <div class="cabecera">
         <h2>Computadores registrados <span id="total" class="nota"></span></h2>
-        <div class="field buscar">
-          <label for="buscar">Buscar</label>
-          <input id="buscar" type="search" autocomplete="off" placeholder="Placa, documento, hostname, serial, marca…">
-        </div>
       </div>
       <div class="filtros" id="filtros"></div>
       <div class="exporta">
@@ -286,7 +282,7 @@
       msg(err && err.code === 'permission-denied' ? 'No tiene permiso para ver los computadores.' : ((err && err.message) || 'No se pudo cargar la lista.'), 'err');
     }
   }
-  var FILTROS = [['placa', 'Placa'], ['cc', 'Documento de Identidad'], ['tipo1', 'Tipo'], ['tipo2', 'Tipo 2'], ['hostname', 'Hostname'], ['serial', 'Serial'], ['marca', 'Marca']];
+  var FILTROS = [['placa', 'Placa'], ['tipo1', 'Tipo'], ['tipo2', 'Tipo 2'], ['hostname', 'Hostname'], ['serial', 'Serial']];
   var filtroVal = {};
   var visibles = [];
   function hayFiltro0(q) { return !!q || FILTROS.some(function (f) { return norm(filtroVal[f[0]]); }); }
@@ -313,7 +309,7 @@
     });
   }
   function pintar() {
-    var q = norm($('buscar').value), tb = $('tbody'); tb.textContent = '';
+    var q = '', tb = $('tbody'); tb.textContent = '';
     armarFiltros();
     var lista = equipos.filter(function (eq) {
       for (var i = 0; i < FILTROS.length; i++) {
@@ -339,7 +335,6 @@
       tb.appendChild(el('tr', {}, celdas));
     });
   }
-  $('buscar').addEventListener('input', pintar);
 
   /* ---------- exportar lo que se está viendo ---------- */
   function filasExport() {
