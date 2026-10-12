@@ -40,6 +40,11 @@
   .denegado{max-width:520px;margin:48px auto}
   .denegado p{margin:0 0 14px}
   .req{color:var(--danger)}
+  #eliminar.confirma{background:var(--danger);border-color:var(--danger);color:#fff}
+  th.sel,td.sel{width:34px;text-align:center}
+  .toast{position:fixed;left:50%;bottom:calc(24px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);z-index:50;max-width:min(92vw,520px);padding:14px 18px;border-radius:8px;background:#1f2937;color:#fff;font-size:15px;font-weight:600;box-shadow:0 8px 24px rgba(0,0,0,.3);border-left:6px solid #9ca3af}
+  .toast.ok{border-left-color:#16a34a}
+  .toast.err{border-left-color:#dc2626}
   #archivo{width:min(100%,360px);height:auto;padding:8px 10px}
   .errores{margin:0 0 12px;padding-left:20px;font-size:14px;color:var(--err-ink)}
   .nota{margin:0 0 12px;font-size:13px;color:var(--muted)}
@@ -107,6 +112,8 @@
       <div class="exporta">
         <strong id="conteo" role="status" aria-live="polite"></strong>
         <span class="botones">
+          <button class="sec mini" type="button" id="eliminar" hidden>Eliminar seleccionados</button>
+          <button class="sec mini" type="button" id="eliminar-no" hidden>Cancelar</button>
           <button class="sec mini" type="button" id="exp-xlsx">Exportar Excel</button>
           <button class="sec mini" type="button" id="exp-csv">Exportar CSV</button>
           <button class="sec mini" type="button" id="exp-txt">Exportar texto plano</button>
@@ -114,12 +121,14 @@
       </div>
       <div class="tabla">
         <table>
-          <thead><tr><th>CC</th><th>Nombres</th><th>Apellidos</th><th>Sede</th><th>Dependencia</th><th>Tipo contrato</th><th>Número contrato</th><th>Acciones</th></tr></thead>
+          <thead><tr><th class="sel"><input type="checkbox" id="sel-todos" aria-label="Seleccionar todos los que se ven" title="Seleccionar todos los que se ven"></th><th>CC</th><th>Nombres</th><th>Apellidos</th><th>Sede</th><th>Dependencia</th><th>Tipo contrato</th><th>Número contrato</th><th>Acciones</th></tr></thead>
           <tbody id="tbody"></tbody>
         </table>
       </div>
     </section>
   </main>
+
+  <div id="toast" class="toast" role="alert" aria-live="assertive" hidden></div>
 
   <section class="card denegado" id="denegado" hidden>
     <h1 class="eyebrow">Acceso restringido</h1>
@@ -137,6 +146,7 @@
   var $ = function (id) { return document.getElementById(id); };
   var COL = 'bd_personas';
   var yo = null, editando = null, equipos = [];
+  var seleccion = {}, confirmando = false;
 
   // Grupos de preguntas del formulario: [clave, etiqueta, obligatorio, tipo, opciones]
   var GRUPOS = [
@@ -149,6 +159,13 @@
   var CAMPOS = [];
   GRUPOS.forEach(function (g) { g[1].forEach(function (c) { CAMPOS.push(c); }); });
 
+  var toastT = null;
+  function msgT(t, tipo) {
+    var box = $('toast'); clearTimeout(toastT);
+    if (!t) { box.hidden = true; return; }
+    box.textContent = t; box.className = 'toast ' + (tipo || ''); box.hidden = false;
+    if (t !== 'Eliminando…') toastT = setTimeout(function () { box.hidden = true; }, tipo === 'err' ? 9000 : 5000);
+  }
   function msg(t, tipo) { $('estado').textContent = t || ''; $('estado').className = 'status' + (tipo ? ' ' + tipo : ''); }
   function el(tag, props, hijos) {
     var e = document.createElement(tag);
@@ -282,6 +299,46 @@
         .forEach(function (v) { dl.appendChild(el('option', { value: v })); });
     });
   }
+  /* ---------- eliminar una o varias ---------- */
+  function idsSel() { return equipos.filter(function (e) { return seleccion[e.id]; }).map(function (e) { return e.id; }); }
+  function actualizarSeleccion() {
+    var n = idsSel().length, b = $('eliminar'), t = $('sel-todos');
+    b.hidden = !n; $('eliminar-no').hidden = !n || !confirmando;
+    b.className = 'sec mini' + (confirmando ? ' confirma' : '');
+    b.textContent = confirmando ? 'Sí, eliminar ' + n + ' definitivamente' : 'Eliminar seleccionados (' + n + ')';
+    var vis = visibles.filter(function (e) { return seleccion[e.id]; }).length;
+    t.checked = !!visibles.length && vis === visibles.length;
+    t.indeterminate = vis > 0 && vis < visibles.length;
+  }
+  $('sel-todos').addEventListener('change', function () {
+    var on = this.checked;
+    visibles.forEach(function (e) { if (on) seleccion[e.id] = 1; else delete seleccion[e.id]; });
+    confirmando = false; pintar();
+  });
+  $('eliminar').addEventListener('click', async function () {
+    var ids = idsSel();
+    if (!ids.length) return;
+    if (!confirmando) { confirmando = true; actualizarSeleccion(); msgT('Se eliminarán ' + ids.length + ' persona(s). Esta acción no se puede deshacer; confirme o cancele.', 'err'); return; }
+    $('eliminar').disabled = true; msgT('Eliminando…');
+    try {
+      var db = firebase.firestore(), col = db.collection(COL);
+      for (var i = 0; i < ids.length; i += 400) {
+        var batch = db.batch();
+        ids.slice(i, i + 400).forEach(function (id) { batch.delete(col.doc(id)); });
+        await batch.commit();
+      }
+      seleccion = {}; confirmando = false;
+      if (editando && ids.indexOf(editando) >= 0) salirEdicion();
+      msgT('Se eliminaron ' + ids.length + ' persona(s).', 'ok');
+      await cargar();
+    } catch (err) {
+      confirmando = false;
+      msgT(err && err.code === 'permission-denied' ? 'No tiene permiso para eliminar (revise las reglas de Firestore).' : ((err && err.message) || 'No se pudo eliminar.'), 'err');
+      actualizarSeleccion();
+    }
+    $('eliminar').disabled = false;
+  });
+  $('eliminar-no').addEventListener('click', function () { confirmando = false; msgT(''); actualizarSeleccion(); });
   function pintar() {
     var q = norm($('buscar').value), tb = $('tbody'); tb.textContent = '';
     armarFiltros();
@@ -297,14 +354,22 @@
     $('conteo').textContent = (hayFiltro0(q) ? 'Resultados: ' : 'Total: ') + lista.length + (hayFiltro0(q) ? ' de ' + equipos.length + ' personas' : ' personas');
     var hayFiltro = q || FILTROS.some(function (f) { return filtroVal[f[0]]; });
     $('total').textContent = '(' + lista.length + (hayFiltro ? ' de ' + equipos.length : '') + ')';
+    actualizarSeleccion();
     if (!lista.length) {
-      tb.appendChild(el('tr', {}, [el('td', { colSpan: 8, cls: 'vacio', text: equipos.length ? 'Ninguna persona coincide con la búsqueda.' : 'Aún no hay personas registradas.' })]));
+      tb.appendChild(el('tr', {}, [el('td', { colSpan: 9, cls: 'vacio', text: equipos.length ? 'Ninguna persona coincide con la búsqueda.' : 'Aún no hay personas registradas.' })]));
       return;
     }
     lista.forEach(function (eq) {
       var bEd = el('button', { cls: 'sec mini', type: 'button', text: 'Editar' });
       bEd.addEventListener('click', function () { editar(eq); });
+      var chk = el('input', { type: 'checkbox', checked: !!seleccion[eq.id] });
+      chk.setAttribute('aria-label', 'Seleccionar ' + (eq.cc || ''));
+      chk.addEventListener('change', function () {
+        if (chk.checked) seleccion[eq.id] = 1; else delete seleccion[eq.id];
+        confirmando = false; actualizarSeleccion();
+      });
       tb.appendChild(el('tr', {}, [
+        el('td', { cls: 'sel' }, [chk]),
         el('td', { text: eq.cc || '' }),
         el('td', { text: eq.nombres || '' }),
         el('td', { text: eq.apellidos || '' }),
@@ -330,7 +395,7 @@
     setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
   }
   function nombreArchivo(ext) { return 'personas_' + new Date().toISOString().slice(0, 10) + '.' + ext; }
-  function sinDatos() { if (!visibles.length) { msg('No hay resultados para exportar.', 'err'); return true; } msg(''); return false; }
+  function sinDatos() { if (!visibles.length) { msgT('No hay resultados para exportar.', 'err'); return true; } msgT(''); return false; }
   $('exp-csv').addEventListener('click', function () {
     if (sinDatos()) return;
     var csv = filasExport().map(function (f) { return f.map(function (v) { return '"' + v.replace(/"/g, '""') + '"'; }).join(';'); }).join('\r\n');
@@ -343,7 +408,7 @@
   });
   $('exp-xlsx').addEventListener('click', function () {
     if (sinDatos()) return;
-    if (!window.XLSX) { msg('No se pudo cargar el generador de Excel. Use CSV o revise su conexión.', 'err'); return; }
+    if (!window.XLSX) { msgT('No se pudo cargar el generador de Excel. Use CSV o revise su conexión.', 'err'); return; }
     var wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(filasExport()), 'Personas');
     XLSX.writeFile(wb, nombreArchivo('xlsx'));
