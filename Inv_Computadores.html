@@ -57,48 +57,6 @@
 
   <main id="contenido" hidden>
     <section class="card">
-      <h2 id="form-titulo">Registrar computador</h2>
-      <p class="nota">Los campos con <span class="req">*</span> son obligatorios.</p>
-      <form id="f-equipo" novalidate>
-        <div id="campos"></div>
-        <div class="acciones">
-          <button class="go" type="submit" id="guardar">Guardar computador</button>
-          <button class="sec" type="button" id="cancelar" hidden>Cancelar edición</button>
-        </div>
-      </form>
-      <p class="status" id="estado" role="status" aria-live="polite"></p>
-    </section>
-
-    <section class="card" id="migrar" hidden>
-      <h2>Mover datos del equipo a la base de datos</h2>
-      <p class="nota" id="migrar-txt"></p>
-      <p class="nota">Antes de mover, se descarga un respaldo (.json) de todos los registros. Los datos del equipo (hostname, marca, modelo, serial, hardware, software y observaciones) pasan a <strong>bd_Computadores</strong> y se quitan de esta página; la placa se conserva aquí como enlace.</p>
-      <div class="acciones">
-        <button class="go" type="button" id="migrar-btn">Mover datos</button>
-        <button class="sec" type="button" id="migrar-no" hidden>Cancelar</button>
-      </div>
-      <p class="status" id="estado-mig" role="status" aria-live="polite"></p>
-    </section>
-
-    <section class="card">
-      <h2>Importar desde Excel</h2>
-      <p class="nota">Se importa todo el archivo, aunque tenga datos faltantes o repetidos; luego puede corregirlos con Editar. Suba un archivo .xlsx, .xls o .csv con los encabezados en la primera fila (CC, NOMBRES, APELLIDOS, SEDE, DEPENDENCIA, TIPO CONTRATO, NÚMERO CONTRATO, PLACA, ESTADO). La columna ESTADO es opcional: si no está, todos se registran como <strong>Activo</strong>.</p>
-      <div class="acciones">
-        <input id="archivo" type="file" accept=".xlsx,.xls,.csv" aria-label="Archivo de Excel">
-        <button class="sec" type="button" id="plantilla">Descargar plantilla</button>
-      </div>
-      <div id="resumen" hidden>
-        <p id="resumen-txt" class="nota"></p>
-        <ul id="errores-lista" class="errores"></ul>
-        <div class="acciones">
-          <button class="go" type="button" id="importar-btn">Importar</button>
-          <button class="sec" type="button" id="importar-cancelar">Cancelar</button>
-        </div>
-      </div>
-      <p class="status" id="estado-imp" role="status" aria-live="polite"></p>
-    </section>
-
-    <section class="card">
       <div class="cabecera">
         <h2>Computadores registrados <span id="total" class="nota"></span></h2>
         <div class="field buscar">
@@ -115,9 +73,10 @@
           <button class="sec mini" type="button" id="exp-txt">Exportar texto plano</button>
         </span>
       </div>
+      <p class="status" id="estado" role="status" aria-live="polite"></p>
       <div class="tabla">
         <table>
-          <thead><tr><th>CC</th><th>Nombres</th><th>Apellidos</th><th>Sede</th><th>Dependencia</th><th>Placa</th><th>Estado</th><th>Acciones</th></tr></thead>
+          <thead><tr><th>CC</th><th>Nombres</th><th>Apellidos</th><th>Sede</th><th>Dependencia</th><th>Placa</th><th>Estado</th></tr></thead>
           <tbody id="tbody"></tbody>
         </table>
       </div>
@@ -165,91 +124,6 @@
   function limpio(v) { return String(v == null ? '' : v).trim(); }
   function norm(v) { return limpio(v).toLowerCase(); }
 
-  /* ---------- formulario ---------- */
-  function construirFormulario() {
-    var cont = $('campos');
-    GRUPOS.forEach(function (g) {
-      var grid = el('div', { cls: 'grid' });
-      g[1].forEach(function (c) {
-        var area = c[3] === 'area';
-        var id = 'c-' + c[0];
-        var lbl = el('label', { htmlFor: id });
-        lbl.appendChild(document.createTextNode(c[1] + ' '));
-        if (c[2]) lbl.appendChild(el('span', { cls: 'req', text: '*' }));
-        var inp;
-        if (area) inp = el('textarea', { id: id, maxLength: 1000 });
-        else if (c[3] === 'select') {
-          inp = el('select', { id: id });
-          c[4].forEach(function (o) { inp.appendChild(el('option', { text: o || '— Seleccione —', value: o })); });
-        } else { inp = el('input', { id: id, maxLength: 120, autocomplete: 'off' }); inp.setAttribute('autocapitalize', 'none'); }
-        grid.appendChild(el('div', { cls: 'field' + (area ? ' ancho' : '') }, [lbl, inp]));
-      });
-      cont.appendChild(el('fieldset', {}, [el('legend', { text: g[0] }), grid]));
-    });
-  }
-  function valores() {
-    var d = {};
-    CAMPOS.forEach(function (c) { d[c[0]] = limpio($('c-' + c[0]).value); });
-    return d;
-  }
-  function ponerValores(d) {
-    CAMPOS.forEach(function (c) {
-      var campo = $('c-' + c[0]), v = d[c[0]] || (c[3] === 'select' ? c[4][0] : '');
-      // Valor guardado que no está en la lista (p. ej. datos importados): se conserva como opción extra
-      if (c[3] === 'select' && v && c[4].indexOf(v) < 0 && !Array.prototype.some.call(campo.options, function (o) { return o.value === v; })) campo.appendChild(el('option', { text: v, value: v }));
-      campo.value = v;
-    });
-  }
-  function salirEdicion() {
-    editando = null;
-    ponerValores({});
-    $('form-titulo').textContent = 'Registrar computador';
-    $('guardar').textContent = 'Guardar computador';
-    $('cancelar').hidden = true;
-  }
-  function editar(eq) {
-    editando = eq.id;
-    ponerValores(eq);
-    $('form-titulo').textContent = 'Editar computador: ' + eq.cc;
-    $('guardar').textContent = 'Guardar cambios';
-    $('cancelar').hidden = false;
-    msg('');
-    $('c-cc').focus();
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-  }
-  $('cancelar').addEventListener('click', function () { salirEdicion(); msg(''); });
-
-  function validar(d) {
-    for (var i = 0; i < CAMPOS.length; i++) {
-      if (CAMPOS[i][2] && !d[CAMPOS[i][0]]) return 'Complete el campo ' + CAMPOS[i][1] + '.';
-    }
-    var dup = function (campo, etiqueta) {
-      if (!d[campo]) return null;
-      var otro = equipos.filter(function (e) { return e.id !== editando && norm(e[campo]) === norm(d[campo]); })[0];
-      return otro ? 'Ya existe un computador con ' + etiqueta + ' ' + d[campo] + '.' : null;
-    };
-    return dup('placa', 'la placa');
-  }
-
-  $('f-equipo').addEventListener('submit', async function (e) {
-    e.preventDefault();
-    var d = valores(), error = validar(d);
-    if (error) { msg(error, 'err'); return; }
-    $('guardar').disabled = true;
-    try {
-      var col = firebase.firestore().collection(COL);
-      d.actualizadoPor = yo.usuario;
-      d.actualizado = firebase.firestore.FieldValue.serverTimestamp();
-      if (editando) { await col.doc(editando).update(d); msg('Computador actualizado.', 'ok'); }
-      else { d.creadoPor = yo.usuario; await col.add(d); msg('Computador registrado.', 'ok'); }
-      salirEdicion();
-      await cargar();
-    } catch (err) {
-      msg(err && err.code === 'permission-denied' ? 'No tiene permiso para realizar esta acción.' : ((err && err.message) || 'No se pudo guardar.'), 'err');
-    }
-    $('guardar').disabled = false;
-  });
-
   /* ---------- tabla ---------- */
   async function cargar() {
     try {
@@ -257,7 +131,7 @@
       equipos = [];
       snap.forEach(function (d) { var x = d.data(); x.id = d.id; equipos.push(x); });
       equipos.sort(function (a, b) { return norm(a.apellidos + ' ' + a.nombres) < norm(b.apellidos + ' ' + b.nombres) ? -1 : 1; });
-      pintar(); revisarMigracion();
+      pintar();
     } catch (err) {
       msg(err && err.code === 'permission-denied' ? 'No tiene permiso para ver los computadores.' : ((err && err.message) || 'No se pudo cargar la lista.'), 'err');
     }
@@ -304,12 +178,10 @@
     var hayFiltro = q || FILTROS.some(function (f) { return filtroVal[f[0]]; });
     $('total').textContent = '(' + lista.length + (hayFiltro ? ' de ' + equipos.length : '') + ')';
     if (!lista.length) {
-      tb.appendChild(el('tr', {}, [el('td', { colSpan: 8, cls: 'vacio', text: equipos.length ? 'Ningún computador coincide con la búsqueda.' : 'Aún no hay computadores registrados.' })]));
+      tb.appendChild(el('tr', {}, [el('td', { colSpan: 7, cls: 'vacio', text: equipos.length ? 'Ningún computador coincide con la búsqueda.' : 'Aún no hay computadores registrados.' })]));
       return;
     }
     lista.forEach(function (eq) {
-      var bEd = el('button', { cls: 'sec mini', type: 'button', text: 'Editar' });
-      bEd.addEventListener('click', function () { editar(eq); });
       tb.appendChild(el('tr', {}, [
         el('td', { text: eq.cc || '' }),
         el('td', { text: eq.nombres || '' }),
@@ -317,8 +189,7 @@
         el('td', { text: eq.sede || '' }),
         el('td', { text: eq.dependencia || '' }),
         el('td', { text: eq.placa || '' }),
-        el('td', { text: eq.estado || '' }),
-        el('td', {}, [bEd])
+        el('td', { text: eq.estado || '' })
       ]));
     });
   }
@@ -355,188 +226,6 @@
     XLSX.writeFile(wb, nombreArchivo('xlsx'));
   });
 
-  /* ---------- importar desde Excel ---------- */
-  var ENCAB = {};   // encabezado normalizado -> clave del campo
-  function normEnc(v) { return String(v == null ? '' : v).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase().replace(/[^A-Z0-9]+/g, ' ').trim(); }
-  CAMPOS.forEach(function (c) { ENCAB[normEnc(c[1])] = c[0]; });
-  ENCAB['NUMERO CONTRATO'] = 'numeroContrato';
-  var pendientes = [];
-
-  function estadoDe(v) {
-    var n = normEnc(v);
-    if (!n) return 'Activo';
-    if (n === 'ACTIVO') return 'Activo';
-    if (n === 'BAJA') return 'Baja';
-    if (n === 'GARANTIA') return 'Garantía';
-    return null;
-  }
-  // filas: matriz (primera fila = encabezados). Devuelve { validos, errores, ignoradas }.
-  function procesarFilas(filas) {
-    var res = { validos: [], errores: [], ignoradas: [], fatal: null };
-    var iEnc = -1;
-    for (var i = 0; i < filas.length && iEnc < 0; i++) {
-      if (filas[i].some(function (c) { return limpio(c) !== ''; })) iEnc = i;
-    }
-    if (iEnc < 0) { res.fatal = 'El archivo está vacío.'; return res; }
-    var mapa = {};   // índice de columna -> campo
-    filas[iEnc].forEach(function (h, j) {
-      var campo = ENCAB[normEnc(h)];
-      if (campo && !Object.keys(mapa).some(function (k) { return mapa[k] === campo; })) mapa[j] = campo;
-      else if (limpio(h) !== '') res.ignoradas.push(limpio(h));
-    });
-    if (!Object.keys(mapa).length) { res.fatal = 'No se reconoció ninguna columna. Revise que los encabezados estén en la primera fila.'; return res; }
-    // Se importa todo; los avisos (datos faltantes o repetidos) se corrigen luego a mano con Editar.
-    var vistos = { placa: {} };
-    equipos.forEach(function (e) { ['placa'].forEach(function (k) { if (norm(e[k])) vistos[k][norm(e[k])] = 1; }); });
-    for (var f = iEnc + 1; f < filas.length; f++) {
-      var fila = filas[f];
-      if (!fila.some(function (c) { return limpio(c) !== ''; })) continue;
-      var d = {};
-      CAMPOS.forEach(function (c) { d[c[0]] = ''; });
-      Object.keys(mapa).forEach(function (j) { d[mapa[j]] = limpio(fila[j]); });
-      var avisos = [];
-      var est = estadoDe(d.estado);
-      if (est === null) { avisos.push('estado "' + d.estado + '" no válido, se dejó Activo'); est = 'Activo'; }
-      d.estado = est;
-      var falta = CAMPOS.filter(function (c) { return c[2] && !d[c[0]]; }).map(function (c) { return c[1]; });
-      if (falta.length) avisos.push('falta ' + falta.join(', '));
-      ['placa'].forEach(function (campo) {
-        if (!d[campo]) return;
-        var n = norm(d[campo]);
-        if (vistos[campo][n]) avisos.push(campo + ' ' + d[campo] + ' repetido'); else vistos[campo][n] = 1;
-      });
-      if (avisos.length) res.errores.push('Fila ' + (f + 1) + ': ' + avisos.join('; ') + '.');
-      res.validos.push(d);
-    }
-    return res;
-  }
-  function msgImp(t, tipo) { $('estado-imp').textContent = t || ''; $('estado-imp').className = 'status' + (tipo ? ' ' + tipo : ''); }
-  function limpiarImportacion() {
-    pendientes = []; $('resumen').hidden = true; $('archivo').value = ''; $('errores-lista').textContent = '';
-  }
-  $('archivo').addEventListener('change', async function () {
-    var file = this.files && this.files[0];
-    pendientes = []; $('resumen').hidden = true; msgImp('');
-    if (!file) return;
-    if (!window.XLSX) { msgImp('No se pudo cargar el lector de Excel. Revise su conexión a internet.', 'err'); return; }
-    try {
-      var wb = XLSX.read(await file.arrayBuffer(), { type: 'array' });
-      var ws = wb.Sheets[wb.SheetNames[0]];
-      var filas = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '', raw: false });
-      var res = procesarFilas(filas);
-      if (res.fatal) { msgImp(res.fatal, 'err'); return; }
-      pendientes = res.validos;
-      var txt = res.validos.length + ' computador(es) listos para importar';
-      if (res.errores.length) txt += ' (se importan todas). ' + res.errores.length + ' fila(s) tienen datos por revisar y podrá corregirlas luego con Editar';
-      txt += '.';
-      if (res.ignoradas.length) txt += ' Columnas no reconocidas (se ignoran): ' + res.ignoradas.join(', ') + '.';
-      $('resumen-txt').textContent = txt;
-      var ul = $('errores-lista'); ul.textContent = '';
-      res.errores.slice(0, 15).forEach(function (m) { ul.appendChild(el('li', { text: m })); });
-      if (res.errores.length > 15) ul.appendChild(el('li', { text: '… y ' + (res.errores.length - 15) + ' más.' }));
-      $('importar-btn').disabled = !res.validos.length;
-      $('importar-btn').textContent = 'Importar ' + res.validos.length;
-      $('resumen').hidden = false;
-    } catch (err) { msgImp('No se pudo leer el archivo: ' + ((err && err.message) || 'formato no válido') + '.', 'err'); }
-  });
-  $('importar-cancelar').addEventListener('click', function () { limpiarImportacion(); msgImp(''); });
-  $('importar-btn').addEventListener('click', async function () {
-    if (!pendientes.length) return;
-    $('importar-btn').disabled = true; msgImp('Importando…');
-    try {
-      var db = firebase.firestore(), col = db.collection(COL), total = pendientes.length;
-      for (var i = 0; i < total; i += 400) {
-        var batch = db.batch();
-        pendientes.slice(i, i + 400).forEach(function (d) {
-          var x = Object.assign({}, d);
-          x.creadoPor = yo.usuario; x.actualizadoPor = yo.usuario; x.importado = true;
-          x.actualizado = firebase.firestore.FieldValue.serverTimestamp();
-          batch.set(col.doc(), x);
-        });
-        await batch.commit();
-      }
-      limpiarImportacion();
-      msgImp('Se importaron ' + total + ' computador(es).', 'ok');
-      await cargar();
-    } catch (err) {
-      $('importar-btn').disabled = false;
-      msgImp(err && err.code === 'permission-denied' ? 'No tiene permiso para realizar esta acción.' : ((err && err.message) || 'No se pudo importar.'), 'err');
-    }
-  });
-  $('plantilla').addEventListener('click', function () {
-    if (!window.XLSX) { msgImp('No se pudo cargar el lector de Excel.', 'err'); return; }
-    var enc = ['CC', 'NOMBRES', 'APELLIDOS', 'SEDE', 'DEPENDENCIA', 'TIPO CONTRATO', 'NÚMERO CONTRATO', 'PLACA', 'ESTADO'];
-    var wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([enc]), 'Computadores');
-    XLSX.writeFile(wb, 'plantilla_computadores.xlsx');
-  });
-
-  /* ---------- mover datos del equipo a bd_Computadores (una sola vez) ---------- */
-  var EQUIPO_KEYS = ['tipo1', 'tipo2', 'hostname', 'marca', 'modelo', 'serial', 'procesador', 'generacion', 'ram', 'ramTipo',
-    'dd1Cantidad', 'dd1Tipo', 'dd2Cantidad', 'dd2Tipo', 'windows', 'clave', 'office', 'activacion', 'antivirus', 'observaciones'];
-  function conEquipo(e) { return EQUIPO_KEYS.some(function (k) { return e[k] !== undefined && e[k] !== null; }); }
-  var confirmando = false;
-  function msgMig(t, tipo) { $('estado-mig').textContent = t || ''; $('estado-mig').className = 'status' + (tipo ? ' ' + tipo : ''); }
-  function revisarMigracion() {
-    var n = equipos.filter(conEquipo).length;
-    $('migrar').hidden = !n;
-    $('migrar-txt').textContent = n + ' registro(s) todavía tienen datos del equipo guardados aquí.';
-  }
-  function reiniciarMig() { confirmando = false; $('migrar-btn').textContent = 'Mover datos'; $('migrar-no').hidden = true; }
-  $('migrar-no').addEventListener('click', function () { reiniciarMig(); msgMig(''); });
-  $('migrar-btn').addEventListener('click', async function () {
-    var lista = equipos.filter(conEquipo);
-    if (!lista.length) return;
-    if (!confirmando) {
-      confirmando = true; $('migrar-btn').textContent = 'Confirmar: mover ' + lista.length + ' registro(s)'; $('migrar-no').hidden = false;
-      msgMig('Se descargará un respaldo y luego se moverán los datos. Pulse de nuevo para confirmar.'); return;
-    }
-    $('migrar-btn').disabled = true; $('migrar-no').hidden = true; confirmando = false;
-    try {
-      msgMig('Descargando respaldo…');
-      descargarRespaldo();
-      var db = firebase.firestore(), dest = db.collection('bd_computadores'), col = db.collection(COL), i, lote;
-      msgMig('Copiando a bd_Computadores…');
-      for (i = 0; i < lista.length; i += 200) {
-        lote = db.batch();
-        lista.slice(i, i + 200).forEach(function (e) {
-          var d = {};
-          EQUIPO_KEYS.forEach(function (k) { if (e[k] !== undefined && e[k] !== null) d[k] = e[k]; });
-          if (e.placa) d.placa = e.placa;
-          d.migradoDe = e.id; d.actualizadoPor = yo.usuario; d.actualizado = firebase.firestore.FieldValue.serverTimestamp();
-          lote.set(dest.doc(e.id), d, { merge: true });
-        });
-        await lote.commit();
-      }
-      msgMig('Verificando copia…');
-      var snap = await dest.get(), ids = {};
-      snap.forEach(function (d) { ids[d.id] = 1; });
-      var faltan = lista.filter(function (e) { return !ids[e.id]; }).length;
-      if (faltan) throw new Error('No se pudo verificar la copia de ' + faltan + ' registro(s); no se quitó nada.');
-      msgMig('Quitando los datos del equipo de esta página…');
-      for (i = 0; i < lista.length; i += 200) {
-        lote = db.batch();
-        lista.slice(i, i + 200).forEach(function (e) {
-          var q = {};
-          EQUIPO_KEYS.forEach(function (k) { if (e[k] !== undefined && e[k] !== null) q[k] = firebase.firestore.FieldValue.delete(); });
-          lote.update(col.doc(e.id), q);
-        });
-        await lote.commit();
-      }
-      msgMig('Listo: ' + lista.length + ' registro(s) movidos a bd_Computadores. El respaldo quedó en sus descargas.', 'ok');
-      await cargar();
-    } catch (err) {
-      msgMig(err && err.code === 'permission-denied' ? 'No tiene permiso para realizar esta acción.' : ((err && err.message) || 'No se pudo mover.'), 'err');
-    }
-    $('migrar-btn').disabled = false; reiniciarMig();
-  });
-  function descargarRespaldo() {
-    var url = URL.createObjectURL(new Blob([JSON.stringify(equipos, null, 1)], { type: 'application/json' }));
-    var a = document.createElement('a'); a.href = url; a.download = 'respaldo_computadores_' + new Date().toISOString().slice(0, 10) + '.json';
-    document.body.appendChild(a); a.click(); document.body.removeChild(a);
-    setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
-  }
-
   $('salir').addEventListener('click', function () { App.logout().then(function () { location.href = 'index.html'; }); });
 
   /* ---------- arranque ---------- */
@@ -547,7 +236,6 @@
       $('denegado').hidden = false; return;
     }
     if (yo.rol !== 'Administrador' && yo.rol !== 'Soporte') { $('denegado').hidden = false; return; }
-    construirFormulario();
     $('quien').textContent = yo.nombre + ' (' + yo.rol + ')';
     $('barra').hidden = false; $('contenido').hidden = false;
     cargar();
