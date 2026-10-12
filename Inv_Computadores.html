@@ -248,18 +248,26 @@
   }
   var FILTROS = [['cc', 'CC'], ['nombres', 'Nombres'], ['apellidos', 'Apellidos']];
   var filtroVal = {};
+  var filtrosListos = false;
   function armarFiltros() {
-    var cont = $('filtros'); cont.textContent = '';
+    var cont = $('filtros');
+    if (!filtrosListos) {
+      filtrosListos = true;
+      FILTROS.forEach(function (f) {
+        var k = f[0];
+        var inp = el('input', { id: 'f-' + k, type: 'search', autocomplete: 'off', placeholder: 'Escriba ' + f[1] + '…' });
+        inp.setAttribute('list', 'dl-' + k);
+        inp.addEventListener('input', function () { filtroVal[k] = inp.value; pintar(); });
+        cont.appendChild(el('div', { cls: 'field' }, [el('label', { htmlFor: 'f-' + k, text: f[1] }), inp, el('datalist', { id: 'dl-' + k })]));
+      });
+    }
+    // Sugerencias: valores existentes que coinciden con lo escrito en ese filtro
     FILTROS.forEach(function (f) {
-      var k = f[0], vistos = {};
-      equipos.forEach(function (e) { var v = limpio(e[k]); if (v) vistos[v] = 1; });
-      var vals = Object.keys(vistos).sort(function (a, b) { return a.toLowerCase() < b.toLowerCase() ? -1 : 1; });
-      if (filtroVal[k] && vals.indexOf(filtroVal[k]) < 0) filtroVal[k] = '';
-      var sel = el('select', { id: 'f-' + k });
-      sel.appendChild(el('option', { value: '', text: 'Todos' }));
-      vals.forEach(function (v) { var o = el('option', { value: v, text: v }); if (v === filtroVal[k]) o.selected = true; sel.appendChild(o); });
-      sel.addEventListener('change', function () { filtroVal[k] = sel.value; pintar(); });
-      cont.appendChild(el('div', { cls: 'field' }, [el('label', { htmlFor: 'f-' + k, text: f[1] }), sel]));
+      var k = f[0], q = norm(filtroVal[k]), vistos = {};
+      equipos.forEach(function (e) { var v = limpio(e[k]); if (v && (!q || norm(v).indexOf(q) >= 0)) vistos[v] = 1; });
+      var dl = $('dl-' + k); dl.textContent = '';
+      Object.keys(vistos).sort(function (a, b) { return a.toLowerCase() < b.toLowerCase() ? -1 : 1; }).slice(0, 50)
+        .forEach(function (v) { dl.appendChild(el('option', { value: v })); });
     });
   }
   function pintar() {
@@ -268,7 +276,7 @@
     var lista = equipos.filter(function (eq) {
       for (var i = 0; i < FILTROS.length; i++) {
         var v = filtroVal[FILTROS[i][0]];
-        if (v && (FILTROS[i][0] === 'estado' ? eq.estado || '' : limpio(eq[FILTROS[i][0]])) !== v) return false;
+        if (norm(v) && norm(eq[FILTROS[i][0]]).indexOf(norm(v)) < 0) return false;
       }
       if (!q) return true;
       return CAMPOS.some(function (c) { return norm(eq[c[0]]).indexOf(q) >= 0; });
