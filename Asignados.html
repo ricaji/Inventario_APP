@@ -57,14 +57,13 @@
   <main id="contenido" hidden>
     <section class="card">
       <h2>Buscar por CC</h2>
-      <p class="nota">Escriba o elija una CC para ver los datos de la persona y los equipos que tiene asignados.</p>
+      <p class="nota">Escriba o elija una CC (se busca al escribir) para ver los datos de la persona y los equipos que tiene asignados.</p>
       <form class="busca" id="f-buscar" novalidate>
         <div class="field">
           <label for="cc">CC</label>
           <input id="cc" type="search" autocomplete="off" list="lista-cc" placeholder="Número de CC…">
           <datalist id="lista-cc"></datalist>
         </div>
-        <button class="go" type="submit" id="buscar">Buscar</button>
       </form>
       <p class="status" id="estado" role="status" aria-live="polite"></p>
     </section>
@@ -161,14 +160,14 @@
     }
   }
 
-  function mostrar() {
+  function mostrar(silencioso) {
     var q = norm($('cc').value);
     $('res-persona').hidden = true; $('res-equipos').hidden = true;
-    if (!q) { msg('Escriba una CC.', 'err'); return; }
+    if (!q) { msg(silencioso ? '' : 'Escriba una CC.', silencioso ? '' : 'err'); return; }
     var persona = personas.filter(function (p) { return norm(p.cc) === q; })[0] || null;
     var propios = asignaciones.filter(function (a) { return norm(a.cc) === q; });
     var porCC = equipos.filter(function (e) { return norm(e.cc) === q; });
-    if (!persona && !propios.length && !porCC.length) { msg('No se encontró la CC ' + limpio($('cc').value) + '.', 'err'); return; }
+    if (!persona && !propios.length && !porCC.length) { if (silencioso) msg(''); else msg('No se encontró la CC ' + limpio($('cc').value) + '.', 'err'); return; }
     msg('');
 
     // Datos del empleado: de bd_personas; si no está, se completan con el inventario
@@ -323,11 +322,12 @@
 
   $('f-buscar').addEventListener('submit', async function (e) {
     e.preventDefault();
-    $('buscar').disabled = true;
     if (await cargar()) mostrar();
-    $('buscar').disabled = false;
   });
-  $('cc').addEventListener('change', function () { if (norm($('cc').value)) mostrar(); });
+  // Sin boton: se busca al escribir o al elegir una CC de la lista
+  var tBus = null;
+  $('cc').addEventListener('input', function () { clearTimeout(tBus); tBus = setTimeout(function () { mostrar(true); }, 250); });
+  $('cc').addEventListener('change', function () { clearTimeout(tBus); if (norm($('cc').value)) mostrar(); });
 
   $('salir').addEventListener('click', function () { App.logout().then(function () { location.href = 'index.html'; }); });
 
