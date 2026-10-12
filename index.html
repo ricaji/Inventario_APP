@@ -120,10 +120,10 @@
         <h1 class="eyebrow">Sesión iniciada</h1>
         <p id="bienvenida-texto"></p>
         <div class="botones destinos" id="destinos" hidden>
-          <a class="go" href="usuarios.html">Usuarios</a>
-          <a class="go" href="Inv_Computadores.html">Inventario de computadores</a>
-          <a class="go" href="bd_Computadores.html">Base de datos de computadores</a>
-          <a class="go" href="bd_personas.html">Base de datos de personas</a>
+          <a class="go" data-gestor href="usuarios.html">Usuarios</a>
+          <a class="go" data-gestor href="Inv_Computadores.html">Inventario de computadores</a>
+          <a class="go" data-gestor href="bd_Computadores.html">Base de datos de computadores</a>
+          <a class="go" data-gestor href="bd_personas.html">Base de datos de personas</a>
           <a class="go" href="Asignados.html">Asignados</a>
         </div>
         <div class="botones">
@@ -155,8 +155,10 @@
   function ocupado(form, si) { form.querySelectorAll('button').forEach(function (b) { b.disabled = si; }); }
   function bienvenida(u) {
     var gestor = u.rol === 'Administrador' || u.rol === 'Soporte';
-    $('destinos').hidden = !gestor;
-    $('bienvenida-texto').textContent = gestor
+    var consulta = u.rol === 'Contratista' || u.rol === 'Vinculado';   // solo ven Asignados, en modo consulta
+    $('destinos').hidden = !(gestor || consulta);
+    document.querySelectorAll('[data-gestor]').forEach(function (a) { a.hidden = !gestor; });
+    $('bienvenida-texto').textContent = (gestor || consulta)
       ? 'Hola, ' + u.nombre + '. Su rol es ' + u.rol + '. ¿A dónde desea ir?'
       : 'Hola, ' + u.nombre + '. Su rol es ' + u.rol + '. Los módulos de inventario y mantenimiento se agregarán próximamente.';
     ir('bienvenida');

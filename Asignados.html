@@ -93,7 +93,7 @@
       <p class="status" id="estado-asig" role="status" aria-live="polite"></p>
       <div class="tabla">
         <table>
-          <thead><tr><th>Placa</th><th>Tipo 1</th><th>Tipo 2</th><th>Hostname</th><th>Marca</th><th>Modelo</th><th>Serial</th><th>Procesador</th><th>RAM</th><th>Windows</th><th>Office</th><th>Antivirus</th><th>Estado</th><th>Acciones</th></tr></thead>
+          <thead><tr><th>Placa</th><th>Tipo 1</th><th>Tipo 2</th><th>Hostname</th><th>Marca</th><th>Modelo</th><th>Serial</th><th>Procesador</th><th>RAM</th><th>Windows</th><th>Office</th><th>Antivirus</th><th>Estado</th><th id="th-acc">Acciones</th></tr></thead>
           <tbody id="tbody"></tbody>
         </table>
       </div>
@@ -118,7 +118,7 @@
 
   <section class="card denegado" id="denegado" hidden>
     <h1 class="eyebrow">Acceso restringido</h1>
-    <p id="denegado-texto">Esta página es solo para los roles Administrador y Soporte.</p>
+    <p id="denegado-texto">Esta página es solo para los roles Administrador, Soporte, Contratista y Vinculado.</p>
     <a class="link" href="index.html">Ir a iniciar sesión</a>
   </section>
 
@@ -129,7 +129,7 @@
 <script>
 (function () {
   var $ = function (id) { return document.getElementById(id); };
-  var yo = null, personas = [], asignaciones = [], equipos = [], actual = null;
+  var yo = null, soloLectura = false, personas = [], asignaciones = [], equipos = [], actual = null;
 
   var DATOS = [['cc', 'CC'], ['nombres', 'Nombres'], ['apellidos', 'Apellidos'], ['sede', 'Sede'], ['dependencia', 'Dependencia'],
     ['tipoContrato', 'Tipo contrato'], ['numeroContrato', 'Número contrato']];
@@ -233,12 +233,12 @@
       var celdas = COLS.map(function (k) { return el('td', { text: limpio(f.eq ? f.eq[k] : '') || (k === 'placa' ? f.placa : '') }); });
       celdas.push(el('td', { text: f.estado }));
       var acc = [];
-      if (f.eq) {
+      if (f.eq && !soloLectura) {
         var br = el('button', { cls: 'sec mini', type: 'button', text: 'Reasignar' });
         br.addEventListener('click', function () { abrirReasignar(f.eq, true); });
         acc.push(br);
       }
-      celdas.push(el('td', {}, [el('div', { cls: 'celda-acc' }, acc)]));
+      if (!soloLectura) celdas.push(el('td', {}, [el('div', { cls: 'celda-acc' }, acc)]));
       tb.appendChild(el('tr', {}, celdas));
     });
     actual = { q: q, datos: origen };
@@ -420,7 +420,11 @@
       $('denegado-texto').textContent = 'Inicie sesión para entrar a esta página.';
       $('denegado').hidden = false; return;
     }
-    if (yo.rol !== 'Administrador' && yo.rol !== 'Soporte') { $('denegado').hidden = false; return; }
+    var gestor = yo.rol === 'Administrador' || yo.rol === 'Soporte';
+    if (!gestor && yo.rol !== 'Contratista' && yo.rol !== 'Vinculado') { $('denegado').hidden = false; return; }
+    // Contratista y Vinculado: solo consulta (sin asignar ni reasignar)
+    soloLectura = !gestor;
+    if (soloLectura) { $('f-asignar').hidden = true; $('f-asignar').style.display = 'none'; $('th-acc').hidden = true; }
     $('quien').textContent = yo.nombre + ' (' + yo.rol + ')';
     $('barra').hidden = false; $('contenido').hidden = false;
     cargar();
