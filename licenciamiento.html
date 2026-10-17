@@ -1,0 +1,337 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#ededed">
+<title>Licenciamiento - Inventario APP</title>
+<link rel="icon" type="image/png" href="favicon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;600;700&display=swap">
+<link rel="stylesheet" href="estilos.css">
+<style>
+  body{background-image:url(logo_agencia_app_hd.png);background-repeat:no-repeat;background-position:center center;background-attachment:fixed;background-size:min(980px,96vw)}
+  .card{background:rgba(255,255,255,.9)}
+  .tabla{background:#fff}
+  .tabla td{background:transparent}
+  .barra{display:flex;flex-wrap:wrap;align-items:center;gap:6px 18px;max-width:1200px;margin:0 auto;padding-block:14px}
+  .barra .marca{margin:0;font-size:18px;font-weight:700;letter-spacing:.01em;flex:1 1 auto}
+  .barra .marca span{color:var(--muted);font-weight:600}
+  .barra .quien{font-size:14px;color:var(--muted)}
+  main{max-width:1200px;margin:0 auto;padding-bottom:32px;display:grid;grid-template-columns:minmax(0,1fr);gap:16px}
+  main > *{min-width:0}
+  h2{margin:0 0 12px;font-size:17px}
+  .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:12px}
+  .grid .ancho{grid-column:1/-1}
+  .field{margin:0}
+  select{width:100%;padding:10px 12px;border:1px solid #b9b9b9;border-radius:6px;background:#fff;color:var(--ink);font:inherit;font-size:16px}
+  textarea{width:100%;min-height:84px;padding:10px 12px;border:1px solid #b9b9b9;border-radius:6px;background:#fff;color:var(--ink);font:inherit;font-size:16px;resize:vertical}
+  :is(select,textarea):focus-visible{outline:3px solid var(--signal);outline-offset:2px}
+  input[readonly]{background:#f3f3f3;color:var(--ink);font-weight:600}
+  .req{color:var(--danger)}
+  .ayuda{display:block;margin-top:3px;font-size:12px;color:var(--muted)}
+  .acciones{display:flex;flex-wrap:wrap;gap:10px;margin-top:14px}
+  .cabecera{display:flex;flex-wrap:wrap;gap:10px 16px;align-items:end;justify-content:space-between;margin-bottom:12px}
+  .cabecera h2{margin:0}
+  .tabla{overflow:auto;max-height:70vh;border:1px solid var(--line);border-radius:6px}
+  .tabla th{position:sticky;top:0;background:#fff;z-index:1}
+  table{width:100%;min-width:1500px;border-collapse:collapse;font-size:14px}
+  th{padding:8px;text-align:left;font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);border-bottom:2px solid var(--line);white-space:nowrap}
+  td{padding:8px;border-bottom:1px solid #e6e6e6;vertical-align:top}
+  td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}
+  td.acc{white-space:nowrap}
+  td.acc button{margin-right:6px}
+  .vacio{padding:18px 8px;color:var(--muted)}
+  .dias-ok{color:#1d5b33;font-weight:700}
+  .dias-pronto{color:#8a5a00;font-weight:700}
+  .dias-vencida{color:var(--danger);font-weight:700}
+  .denegado{max-width:520px;margin:48px auto}
+  .denegado p{margin:0 0 14px}
+  .toast{position:fixed;left:50%;bottom:calc(24px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);z-index:50;max-width:min(92vw,520px);padding:14px 18px;border-radius:8px;background:#1f2937;color:#fff;font-size:15px;font-weight:600;box-shadow:0 8px 24px rgba(0,0,0,.3);border-left:6px solid #9ca3af}
+  .toast.ok{border-left-color:#16a34a}
+  .toast.err{border-left-color:#dc2626}
+  .modo{display:inline-block;margin-left:8px;padding:2px 8px;border-radius:99px;background:var(--warn-bg);color:var(--warn-ink);font-size:12px;font-weight:700}
+</style>
+</head>
+<body>
+
+  <header class="barra" id="barra" hidden>
+    <h1 class="marca">Inventario APP <span>· Licenciamiento</span></h1>
+    <span class="quien" id="quien"></span>
+    <a class="link" href="index.html">Inicio</a>
+    <a class="link" href="Asignados.html">Asignados</a>
+    <a class="link" href="Inv_Computadores.html">Inventario</a>
+    <button class="sec mini" type="button" id="salir">Salir</button>
+  </header>
+
+  <div id="toast" class="toast" role="alert" aria-live="assertive" hidden></div>
+
+  <section class="card denegado" id="denegado" hidden>
+    <h1 class="eyebrow">Acceso restringido</h1>
+    <p id="denegado-texto">Esta página es solo para los roles Administrador y Soporte.</p>
+    <a class="link" href="index.html">Ir a iniciar sesión</a>
+  </section>
+
+  <main id="contenido" hidden>
+
+    <section class="card">
+      <h2 id="titulo-form">Registrar licencia</h2>
+      <form id="f-lic" novalidate autocomplete="off">
+        <div class="grid">
+          <div class="field"><label for="nombre">Nombre Software <span class="req">*</span></label><input id="nombre" required maxlength="120"></div>
+          <div class="field"><label for="fabricante">Fabricante <span class="req">*</span></label><input id="fabricante" required maxlength="120"></div>
+          <div class="field"><label for="cantidad">Cantidad <span class="req">*</span></label><input id="cantidad" type="number" min="1" step="1" inputmode="numeric" required></div>
+          <div class="field"><label for="anioCompra">Año Compra <span class="req">*</span></label><input id="anioCompra" type="number" min="1990" max="2100" step="1" inputmode="numeric" required></div>
+          <div class="field"><label for="fechaActivacion">Fecha Activación <span class="req">*</span></label><input id="fechaActivacion" type="date" required></div>
+          <div class="field"><label for="fechaVencimiento">Fecha Vencimiento <span class="req">*</span></label><input id="fechaVencimiento" type="date" required></div>
+          <div class="field"><label for="diasFaltante">Días Faltante</label><input id="diasFaltante" readonly tabindex="-1"><span class="ayuda">Se calcula solo con la fecha actual.</span></div>
+          <div class="field"><label for="tipoLicencia">Tipo de Licencia <span class="req">*</span></label>
+            <select id="tipoLicencia" required>
+              <option value="">Seleccione…</option>
+              <option>Perpetua</option>
+              <option>Suscripción anual</option>
+              <option>Suscripción mensual</option>
+              <option>OEM</option>
+              <option>Volumen</option>
+              <option>Concurrente</option>
+              <option>Por usuario</option>
+              <option>Por dispositivo</option>
+              <option>Otra</option>
+            </select></div>
+          <div class="field"><label for="contratoAsociado">Contrato Asociado <span class="req">*</span></label><input id="contratoAsociado" required maxlength="80"><span class="ayuda">Es la llave: no puede repetirse.</span></div>
+          <div class="field"><label for="proveedor">Proveedor <span class="req">*</span></label><input id="proveedor" required maxlength="120"></div>
+          <div class="field"><label for="valorIndividual">Valor Individual <span class="req">*</span></label><input id="valorIndividual" type="number" min="0" step="any" inputmode="decimal" required></div>
+          <div class="field"><label for="valorTotal">Valor Total</label><input id="valorTotal" readonly tabindex="-1"><span class="ayuda">Valor individual × cantidad.</span></div>
+          <div class="field ancho"><label for="observaciones">Observaciones</label><textarea id="observaciones" maxlength="1000"></textarea></div>
+        </div>
+        <div class="acciones">
+          <button class="go" type="submit" id="guardar">Guardar licencia</button>
+          <button class="sec" type="button" id="cancelar" hidden>Cancelar edición</button>
+          <button class="sec" type="button" id="limpiar">Limpiar</button>
+        </div>
+      </form>
+    </section>
+
+    <section class="card">
+      <div class="cabecera">
+        <h2>Licencias registradas <span class="muted" id="total">Total: 0</span></h2>
+        <div class="field"><label for="buscar" class="sr">Buscar</label><input id="buscar" class="buscar" type="search" placeholder="Buscar por software, contrato o proveedor"></div>
+      </div>
+      <div class="tabla">
+        <table>
+          <thead><tr>
+            <th>Nombre Software</th><th>Fabricante</th><th class="num">Cantidad</th><th class="num">Año Compra</th>
+            <th>Fecha Activación</th><th>Fecha Vencimiento</th><th class="num">Días Faltante</th><th>Tipo de Licencia</th>
+            <th>Contrato Asociado</th><th>Proveedor</th><th class="num">Valor Individual</th><th class="num">Valor Total</th>
+            <th>Observaciones</th><th>Acciones</th>
+          </tr></thead>
+          <tbody id="cuerpo"><tr><td class="vacio" colspan="14">Cargando…</td></tr></tbody>
+        </table>
+      </div>
+    </section>
+
+  </main>
+
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<script src="app.js"></script>
+<script>
+(function () {
+  'use strict';
+  var COL = 'licenciamiento';
+  var $ = function (id) { return document.getElementById(id); };
+  var yo = null, lista = [], editando = null, borrando = null, borrandoT = null;
+  var peso = new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 2 });
+
+  var toastT = null;
+  function msgT(t, tipo) {
+    var box = $('toast'); clearTimeout(toastT);
+    if (!t) { box.hidden = true; return; }
+    box.textContent = t; box.className = 'toast ' + (tipo || ''); box.hidden = false;
+    toastT = setTimeout(function () { box.hidden = true; }, tipo === 'err' ? 9000 : 5000);
+  }
+  function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
+
+  /* La llave del documento es el Contrato Asociado (Firestore no admite "/" en un id) */
+  function idDe(contrato) { return String(contrato).trim().replace(/\//g, '-'); }
+
+  /* ---------- fechas y cálculos ---------- */
+  function hoyISO() {
+    var d = new Date(); d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
+    return d.toISOString().slice(0, 10);
+  }
+  function diasEntre(desde, hasta) {            // hasta - desde, en días enteros
+    if (!desde || !hasta) return null;
+    var a = Date.parse(desde + 'T00:00:00Z'), b = Date.parse(hasta + 'T00:00:00Z');
+    if (isNaN(a) || isNaN(b)) return null;
+    return Math.round((b - a) / 86400000);
+  }
+  function dias(v) { return diasEntre(hoyISO(), v); }   // días que faltan para el vencimiento
+  function fmtFecha(v) { return v ? v.split('-').reverse().join('/') : ''; }
+  function claseDias(n) { return n === null ? '' : (n < 0 ? 'dias-vencida' : (n <= 30 ? 'dias-pronto' : 'dias-ok')); }
+  function textoDias(n) { return n === null ? '' : (n < 0 ? 'Vencida hace ' + (-n) + ' d' : String(n)); }
+
+  function recalcular() {
+    var n = dias($('fechaVencimiento').value);
+    $('diasFaltante').value = n === null ? '' : (n < 0 ? 'Vencida (hace ' + (-n) + ' días)' : n);
+    var c = parseFloat($('cantidad').value), v = parseFloat($('valorIndividual').value);
+    $('valorTotal').value = (isNaN(c) || isNaN(v)) ? '' : peso.format(c * v);
+  }
+  ['fechaVencimiento', 'fechaActivacion', 'cantidad', 'valorIndividual'].forEach(function (id) {
+    $(id).addEventListener('input', recalcular);
+  });
+
+  /* ---------- formulario ---------- */
+  var CAMPOS_REQ = ['nombre', 'fabricante', 'cantidad', 'anioCompra', 'fechaActivacion', 'fechaVencimiento', 'tipoLicencia', 'contratoAsociado', 'proveedor', 'valorIndividual'];
+  var ETIQ = { nombre: 'Nombre Software', fabricante: 'Fabricante', cantidad: 'Cantidad', anioCompra: 'Año Compra', fechaActivacion: 'Fecha Activación', fechaVencimiento: 'Fecha Vencimiento', tipoLicencia: 'Tipo de Licencia', contratoAsociado: 'Contrato Asociado', proveedor: 'Proveedor', valorIndividual: 'Valor Individual' };
+
+  function limpiar() {
+    $('f-lic').reset(); editando = null; $('contratoAsociado').readOnly = false;
+    $('titulo-form').textContent = 'Registrar licencia'; $('cancelar').hidden = true;
+    $('guardar').textContent = 'Guardar licencia'; recalcular();
+  }
+
+  function leer() {
+    var d = {};
+    CAMPOS_REQ.forEach(function (k) { d[k] = $(k).value.trim(); });
+    d.observaciones = $('observaciones').value.trim();
+    return d;
+  }
+
+  function validar(d) {
+    for (var i = 0; i < CAMPOS_REQ.length; i++) {
+      var k = CAMPOS_REQ[i];
+      if (!d[k]) { $(k).focus(); return 'Complete el campo «' + ETIQ[k] + '». Todos son obligatorios, excepto Observaciones.'; }
+    }
+    var cant = Number(d.cantidad), anio = Number(d.anioCompra), val = Number(d.valorIndividual);
+    if (!Number.isInteger(cant) || cant < 1) { $('cantidad').focus(); return 'La cantidad debe ser un número entero mayor que cero.'; }
+    if (!Number.isInteger(anio) || anio < 1990 || anio > 2100) { $('anioCompra').focus(); return 'El año de compra no es válido.'; }
+    if (isNaN(val) || val < 0) { $('valorIndividual').focus(); return 'El valor individual no es válido.'; }
+    if (diasEntre(d.fechaActivacion, d.fechaVencimiento) < 0) { $('fechaVencimiento').focus(); return 'La fecha de vencimiento no puede ser anterior a la fecha de activación.'; }
+    return '';
+  }
+
+  $('f-lic').addEventListener('submit', async function (e) {
+    e.preventDefault();
+    var d = leer(), err = validar(d);
+    if (err) { msgT(err, 'err'); return; }
+    var id = idDe(d.contratoAsociado);
+    var doc = {
+      nombre: d.nombre, fabricante: d.fabricante, cantidad: Number(d.cantidad), anioCompra: Number(d.anioCompra),
+      fechaActivacion: d.fechaActivacion, fechaVencimiento: d.fechaVencimiento,
+      diasFaltante: dias(d.fechaVencimiento),
+      tipoLicencia: d.tipoLicencia, contratoAsociado: d.contratoAsociado, proveedor: d.proveedor,
+      valorIndividual: Number(d.valorIndividual), valorTotal: Number(d.cantidad) * Number(d.valorIndividual),
+      observaciones: d.observaciones,
+      actualizado: firebase.firestore.FieldValue.serverTimestamp(),
+      actualizadoPor: yo ? yo.usuario : ''
+    };
+    $('guardar').disabled = true;
+    try {
+      var ref = firebase.firestore().collection(COL).doc(id);
+      if (!editando) {
+        var ya = await ref.get();
+        if (ya.exists) {
+          msgT('Ya existe una licencia con el Contrato Asociado «' + d.contratoAsociado + '». Búsquela en la tabla y use Editar.', 'err');
+          $('contratoAsociado').focus(); return;
+        }
+        doc.creado = firebase.firestore.FieldValue.serverTimestamp();
+        doc.creadoPor = yo ? yo.usuario : '';
+      }
+      await ref.set(doc, { merge: true });
+      msgT(editando ? 'Licencia actualizada.' : 'Licencia guardada.', 'ok');
+      limpiar(); await cargar();
+    } catch (er) {
+      msgT(er && er.code === 'permission-denied' ? 'No tiene permiso para guardar (revise las reglas de Firestore).' : ((er && er.message) || 'No se pudo guardar.'), 'err');
+    } finally { $('guardar').disabled = false; }
+  });
+  $('limpiar').addEventListener('click', function () { limpiar(); msgT(''); });
+  $('cancelar').addEventListener('click', function () { limpiar(); msgT(''); });
+
+  /* ---------- tabla ---------- */
+  function visibles() {
+    var q = $('buscar').value.trim().toLowerCase();
+    if (!q) return lista;
+    return lista.filter(function (x) {
+      return [x.nombre, x.contratoAsociado, x.proveedor, x.fabricante].join(' ').toLowerCase().indexOf(q) >= 0;
+    });
+  }
+
+  function pintar() {
+    var v = visibles(), cuerpo = $('cuerpo');
+    $('total').textContent = 'Total: ' + v.length + (v.length !== lista.length ? ' de ' + lista.length : '');
+    if (!v.length) { cuerpo.innerHTML = '<tr><td class="vacio" colspan="14">' + (lista.length ? 'Ninguna licencia coincide con la búsqueda.' : 'Aún no hay licencias registradas.') + '</td></tr>'; return; }
+    cuerpo.innerHTML = v.map(function (x) {
+      var n = dias(x.fechaVencimiento), conf = borrando === x._id;
+      return '<tr>' +
+        '<td>' + esc(x.nombre) + '</td><td>' + esc(x.fabricante) + '</td>' +
+        '<td class="num">' + esc(x.cantidad) + '</td><td class="num">' + esc(x.anioCompra) + '</td>' +
+        '<td>' + fmtFecha(x.fechaActivacion) + '</td><td>' + fmtFecha(x.fechaVencimiento) + '</td>' +
+        '<td class="num ' + claseDias(n) + '">' + esc(textoDias(n)) + '</td>' +
+        '<td>' + esc(x.tipoLicencia) + '</td><td>' + esc(x.contratoAsociado) + '</td><td>' + esc(x.proveedor) + '</td>' +
+        '<td class="num">' + peso.format(x.valorIndividual || 0) + '</td>' +
+        '<td class="num">' + peso.format((x.cantidad || 0) * (x.valorIndividual || 0)) + '</td>' +
+        '<td>' + esc(x.observaciones) + '</td>' +
+        '<td class="acc"><button type="button" class="sec mini" data-ed="' + esc(x._id) + '">Editar</button>' +
+        '<button type="button" class="danger mini" data-del="' + esc(x._id) + '">' + (conf ? '¿Confirmar?' : 'Eliminar') + '</button></td>' +
+        '</tr>';
+    }).join('');
+  }
+  $('buscar').addEventListener('input', pintar);
+
+  $('cuerpo').addEventListener('click', async function (e) {
+    var b = e.target.closest('button'); if (!b) return;
+    if (b.dataset.ed) {
+      var x = lista.filter(function (r) { return r._id === b.dataset.ed; })[0]; if (!x) return;
+      CAMPOS_REQ.forEach(function (k) { $(k).value = x[k] == null ? '' : x[k]; });
+      $('observaciones').value = x.observaciones || '';
+      editando = x._id; $('contratoAsociado').readOnly = true;
+      $('titulo-form').textContent = 'Editar licencia'; $('cancelar').hidden = false;
+      $('guardar').textContent = 'Guardar cambios'; recalcular();
+      $('f-lic').scrollIntoView({ behavior: 'smooth', block: 'start' });
+      msgT('Editando el contrato «' + x.contratoAsociado + '». El Contrato Asociado es la llave y no se puede cambiar.', 'ok');
+    } else if (b.dataset.del) {
+      var id = b.dataset.del;
+      if (borrando !== id) {
+        borrando = id; clearTimeout(borrandoT);
+        borrandoT = setTimeout(function () { borrando = null; pintar(); }, 5000);
+        pintar(); msgT('Pulse «¿Confirmar?» para eliminar la licencia. No se puede deshacer.', 'err'); return;
+      }
+      borrando = null; clearTimeout(borrandoT);
+      try {
+        await firebase.firestore().collection(COL).doc(id).delete();
+        if (editando === id) limpiar();
+        msgT('Licencia eliminada.', 'ok'); await cargar();
+      } catch (er) {
+        msgT(er && er.code === 'permission-denied' ? 'No tiene permiso para eliminar (revise las reglas de Firestore).' : ((er && er.message) || 'No se pudo eliminar.'), 'err'); pintar();
+      }
+    }
+  });
+
+  async function cargar() {
+    try {
+      var snap = await firebase.firestore().collection(COL).get();
+      lista = snap.docs.map(function (d) { var o = d.data(); o._id = d.id; return o; });
+      lista.sort(function (a, b) { return String(a.contratoAsociado).localeCompare(String(b.contratoAsociado), 'es', { numeric: true }); });
+      pintar();
+    } catch (er) {
+      $('cuerpo').innerHTML = '<tr><td class="vacio" colspan="14">No se pudieron leer las licencias' + (er && er.code === 'permission-denied' ? ' (revise las reglas de Firestore).' : '.') + '</td></tr>';
+    }
+  }
+
+  $('salir').addEventListener('click', function () { App.logout().then(function () { location.href = 'index.html'; }); });
+
+  App.init().then(function () {
+    yo = App.current();
+    if (!yo) { $('denegado-texto').textContent = 'Inicie sesión para entrar a esta página.'; $('denegado').hidden = false; return; }
+    if (yo.rol !== 'Administrador' && yo.rol !== 'Soporte') { $('denegado').hidden = false; return; }
+    $('quien').textContent = yo.nombre + ' (' + yo.rol + ')';
+    $('barra').hidden = false; $('contenido').hidden = false;
+    recalcular(); cargar();
+  });
+})();
+</script>
+</body>
+</html>
