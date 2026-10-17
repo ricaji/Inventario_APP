@@ -43,9 +43,9 @@
   td.acc{white-space:nowrap}
   td.acc button{margin-right:6px}
   .vacio{padding:18px 8px;color:var(--muted)}
-  .dias-ok{color:#1d5b33;font-weight:700}
-  .dias-pronto{color:#8a5a00;font-weight:700}
-  .dias-vencida{color:var(--danger);font-weight:700}
+  .alerta-amarilla{background:#ffe066 !important;color:#4a3a00;font-weight:700}
+  .alerta-roja{background:#f26b6b !important;color:#fff;font-weight:700}
+  .renovada-txt{display:inline-block;margin-right:6px;padding:2px 8px;border-radius:99px;background:#e3f3e8;color:#1d5b33;font-size:12px;font-weight:700}
   .denegado{max-width:520px;margin:48px auto}
   .denegado p{margin:0 0 14px}
   .toast{position:fixed;left:50%;bottom:calc(24px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);z-index:50;max-width:min(92vw,520px);padding:14px 18px;border-radius:8px;background:#1f2937;color:#fff;font-size:15px;font-weight:600;box-shadow:0 8px 24px rgba(0,0,0,.3);border-left:6px solid #9ca3af}
@@ -142,7 +142,7 @@
   'use strict';
   var COL = 'licenciamiento';
   var $ = function (id) { return document.getElementById(id); };
-  var yo = null, lista = [], editando = null, borrando = null, borrandoT = null;
+  var yo = null, lista = [], editando = null, renovando = null, borrando = null, borrandoT = null;
   var peso = new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 2 });
 
   var toastT = null;
@@ -170,7 +170,19 @@
   }
   function dias(v) { return diasEntre(hoyISO(), v); }   // días que faltan para el vencimiento
   function fmtFecha(v) { return v ? v.split('-').reverse().join('/') : ''; }
-  function claseDias(n) { return n === null ? '' : (n < 0 ? 'dias-vencida' : (n <= 30 ? 'dias-pronto' : 'dias-ok')); }
+  function sumarMeses(iso, m) {
+    var p = iso.split('-').map(Number), d = new Date(Date.UTC(p[0], p[1] - 1 + m, 1));
+    var ult = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 0)).getUTCDate();
+    d.setUTCDate(Math.min(p[2], ult)); return d.toISOString().slice(0, 10);
+  }
+  /* Rojo: falta 1 mes o menos (o ya venció). Amarillo: faltan 3 meses o menos. Una licencia renovada no alerta. */
+  function nivelAlerta(x) {
+    if (x.renovada || !x.fechaVencimiento) return '';
+    var hoy = hoyISO();
+    if (x.fechaVencimiento <= sumarMeses(hoy, 1)) return 'alerta-roja';
+    if (x.fechaVencimiento <= sumarMeses(hoy, 3)) return 'alerta-amarilla';
+    return '';
+  }
   function textoDias(n) { return n === null ? '' : (n < 0 ? 'Vencida hace ' + (-n) + ' d' : String(n)); }
 
   function recalcular() {
@@ -188,7 +200,7 @@
   var ETIQ = { nombre: 'Nombre Software', fabricante: 'Fabricante', cantidad: 'Cantidad', anioCompra: 'Año Compra', fechaActivacion: 'Fecha Activación', fechaVencimiento: 'Fecha Vencimiento', tipoLicencia: 'Tipo de Licencia', contratoAsociado: 'Contrato Asociado', proveedor: 'Proveedor', valorIndividual: 'Valor Individual' };
 
   function limpiar() {
-    $('f-lic').reset(); editando = null; $('contratoAsociado').readOnly = false;
+    $('f-lic').reset(); editando = null; renovando = null; $('contratoAsociado').readOnly = false;
     $('titulo-form').textContent = 'Registrar licencia'; $('cancelar').hidden = true;
     $('guardar').textContent = 'Guardar licencia'; recalcular();
   }
@@ -240,8 +252,14 @@
         doc.creado = firebase.firestore.FieldValue.serverTimestamp();
         doc.creadoPor = yo ? yo.usuario : '';
       }
-      await ref.set(doc, { merge: true });
-      msgT(editando ? 'Licencia actualizada.' : 'Licencia guardada.', 'ok');
+      if (renovando) {
+        var ant = firebase.firestore().collection(COL).doc(renovando), lote = firebase.firestore().batch();
+        doc.renovacionDe = renovando;
+        lote.set(ref, doc, { merge: true });
+        lote.update(ant, { renovada: true, renovadaPor: d.contratoAsociado, fechaRenovacion: hoyISO(), renovadaPorUsuario: yo ? yo.usuario : '' });
+        await lote.commit();
+      } else await ref.set(doc, { merge: true });
+      msgT(renovando ? 'Licencia renovada: se creó el contrato «' + d.contratoAsociado + '» y se desactivaron los avisos de la anterior.' : (editando ? 'Licencia actualizada.' : 'Licencia guardada.'), 'ok');
       limpiar(); await cargar();
     } catch (er) {
       msgT(er && er.code === 'permission-denied' ? 'No tiene permiso para guardar (revise las reglas de Firestore).' : ((er && er.message) || 'No se pudo guardar.'), 'err');
@@ -264,17 +282,18 @@
     $('total').textContent = 'Total: ' + v.length + (v.length !== lista.length ? ' de ' + lista.length : '');
     if (!v.length) { cuerpo.innerHTML = '<tr><td class="vacio" colspan="14">' + (lista.length ? 'Ninguna licencia coincide con la búsqueda.' : 'Aún no hay licencias registradas.') + '</td></tr>'; return; }
     cuerpo.innerHTML = v.map(function (x) {
-      var n = dias(x.fechaVencimiento), conf = borrando === x._id;
+      var n = dias(x.fechaVencimiento), conf = borrando === x._id, nivel = nivelAlerta(x);
       return '<tr>' +
         '<td>' + esc(x.nombre) + '</td><td>' + esc(x.fabricante) + '</td>' +
         '<td class="num">' + esc(x.cantidad) + '</td><td class="num">' + esc(x.anioCompra) + '</td>' +
-        '<td>' + fmtFecha(x.fechaActivacion) + '</td><td>' + fmtFecha(x.fechaVencimiento) + '</td>' +
-        '<td class="num ' + claseDias(n) + '">' + esc(textoDias(n)) + '</td>' +
+        '<td>' + fmtFecha(x.fechaActivacion) + '</td><td class="' + nivel + '">' + fmtFecha(x.fechaVencimiento) + '</td>' +
+        '<td class="num ' + nivel + '">' + (x.renovada ? 'Renovada' : esc(textoDias(n))) + '</td>' +
         '<td>' + esc(x.tipoLicencia) + '</td><td>' + esc(x.contratoAsociado) + '</td><td>' + esc(x.proveedor) + '</td>' +
         '<td class="num">' + peso.format(x.valorIndividual || 0) + '</td>' +
         '<td class="num">' + peso.format((x.cantidad || 0) * (x.valorIndividual || 0)) + '</td>' +
         '<td>' + esc(x.observaciones) + '</td>' +
         '<td class="acc"><button type="button" class="sec mini" data-ed="' + esc(x._id) + '">Editar</button>' +
+        (x.renovada ? '<span class="renovada-txt" title="Renovada con el contrato ' + esc(x.renovadaPor) + '">Renovada → ' + esc(x.renovadaPor) + '</span>' : '<button type="button" class="go mini" data-ren="' + esc(x._id) + '">Renovada</button>') +
         '<button type="button" class="danger mini" data-del="' + esc(x._id) + '">' + (conf ? '¿Confirmar?' : 'Eliminar') + '</button></td>' +
         '</tr>';
     }).join('');
@@ -292,6 +311,19 @@
       $('guardar').textContent = 'Guardar cambios'; recalcular();
       $('f-lic').scrollIntoView({ behavior: 'smooth', block: 'start' });
       msgT('Editando el contrato «' + x.contratoAsociado + '». El Contrato Asociado es la llave y no se puede cambiar.', 'ok');
+    } else if (b.dataset.ren) {
+      var o = lista.filter(function (r) { return r._id === b.dataset.ren; })[0]; if (!o) return;
+      limpiar();
+      CAMPOS_REQ.forEach(function (k) { $(k).value = o[k] == null ? '' : o[k]; });
+      $('observaciones').value = o.observaciones || '';
+      $('contratoAsociado').value = ''; $('fechaActivacion').value = ''; $('fechaVencimiento').value = '';
+      $('anioCompra').value = new Date().getFullYear();
+      renovando = o._id;
+      $('titulo-form').textContent = 'Renovar licencia (contrato anterior: ' + o.contratoAsociado + ')';
+      $('guardar').textContent = 'Guardar renovación'; $('cancelar').hidden = false; recalcular();
+      $('f-lic').scrollIntoView({ behavior: 'smooth', block: 'start' });
+      $('contratoAsociado').focus();
+      msgT('Escriba el nuevo Contrato Asociado, las fechas y los valores de la compra. Al guardar se crea la nueva licencia y se desactivan los avisos de la anterior.', 'ok');
     } else if (b.dataset.del) {
       var id = b.dataset.del;
       if (borrando !== id) {
